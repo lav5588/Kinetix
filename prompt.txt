@@ -1,0 +1,24 @@
+bhai Please Architect an Android app in react native
+In which First Opening will show the Options, Audio, Video, Photo, PDF, Other Docs, When I Open Audio There should be All the audio folders in the storage, and when we Open the folder there  should be all the audios listed there with smart searching and sorting options there should be integrated music pplayer(with advance options) which can play all formats of audios
+Same for video there should be integrated advance video player(with advance options for android) - (consider all the popular functionalities by which users don't need to trouble if they came from diffrent plateforms)
+Same for image there should be advance integrated image viewer
+same for pdf there should be advance pdf reader integrated in the app
+for other documents give there option to select app to read that functionalities
+
+(remember It should support all kind of videos like vlc media player ) it should not break where other apps break and vlc is able to play
+
+In the UI there should be good level of animations and use the clean material ui interfaces
+
+
+for the data which is already opened, if we reopen it should resume from there we last closed , use the storage in local (choose smartly which storage will be best)
+
+Initially Decide How much components were needed to build (what are there functionalities) How they will integrated
+Decide what libraries are required to install
+decide what library you use for icons
+
+Every Single detail You need to Architect so that consistency will not break in during developement
+decide the themes(colors)
+decide How much theme options we will give to the users
+Decide all The settings which we will give the user to select
+There should also be light and dark mode
+And Suggest the Other things which could make this product better 
