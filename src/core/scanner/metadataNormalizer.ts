@@ -61,8 +61,12 @@ export const normalizeDiscoveredFile = (input: DiscoveredFileInput): MediaFileRo
     return null;
   }
 
-  const folderPath = parentPath(filePath);
-  const folderName = lastPathSegment(folderPath);
+  const folderPath =
+    input.folderPath === undefined
+      ? parentPath(filePath)
+      : (normalizeNullableText(input.folderPath) ?? '');
+  const folderName =
+    normalizeNullableText(input.folderName) ?? (folderPath ? lastPathSegment(folderPath) : '');
 
   return {
     id: normalizeNullableText(input.id) ?? filePath,

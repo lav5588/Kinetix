@@ -12,6 +12,8 @@ export interface DiscoveredFileInput {
   id?: string | null;
   filePath: string;
   fileName?: string | null;
+  folderPath?: string | null;
+  folderName?: string | null;
   mimeType?: string | null;
   sizeBytes?: number | null;
   durationMs?: number | null;
