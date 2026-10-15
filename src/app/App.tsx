@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { initializeDatabaseSchema } from '@core/storage';
 import { AppThemeProvider, CATEGORY_ACCENT_COLORS, useAppTheme, useThemeStore } from '@core/theme';
 import type { ThemePalette } from '@core/theme';
 
@@ -41,6 +42,27 @@ function ThemePreviewScreen(): React.JSX.Element {
   const setThemeMode = useThemeStore((state) => state.setThemeMode);
   const setAmoledBlack = useThemeStore((state) => state.setAmoledBlack);
   const setPalette = useThemeStore((state) => state.setPalette);
+  const [storageReady, setStorageReady] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    initializeDatabaseSchema()
+      .then(() => {
+        if (isMounted) {
+          setStorageReady(true);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setStorageReady(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <ScrollView
@@ -57,6 +79,14 @@ function ThemePreviewScreen(): React.JSX.Element {
         <Text style={[styles.subtitle, { color: theme.appColors.textSecondary }]}>
           Theme preview
         </Text>
+        <View
+          testID="db-status-badge"
+          style={[styles.storageBadge, { backgroundColor: storageReady ? '#22C55E' : '#F59E0B' }]}
+        >
+          <Text style={styles.storageBadgeText}>
+            {storageReady ? 'SQLite + MMKV Ready' : 'Initializing storage...'}
+          </Text>
+        </View>
       </View>
 
       <View
@@ -201,6 +231,17 @@ const styles = StyleSheet.create({
   subtitle: {
     marginTop: 4,
     fontSize: 15,
+  },
+  storageBadge: {
+    marginTop: 12,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  storageBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   card: {
     width: '100%',

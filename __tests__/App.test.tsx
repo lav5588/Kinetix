@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import App from '@app';
 import { useThemeStore } from '@core/theme/useThemeStore';
@@ -8,8 +8,12 @@ describe('App', () => {
     useThemeStore.getState().resetThemeDefaults();
   });
 
-  it('renders the preview and updates its background from theme controls', () => {
+  it('renders the preview and updates its background from theme controls', async () => {
     render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText('SQLite + MMKV Ready')).toBeTruthy();
+    });
 
     const appShell = screen.getByTestId('app-root-shell');
     expect(screen.getByTestId('theme-preview-card')).toBeTruthy();
