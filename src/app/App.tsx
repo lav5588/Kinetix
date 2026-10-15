@@ -106,6 +106,12 @@ function ThemePreviewScreen(): React.JSX.Element {
             theme={theme}
           />
           <ThemeButton
+            label="System"
+            selected={themeMode === 'system'}
+            onPress={() => setThemeMode('system')}
+            theme={theme}
+          />
+          <ThemeButton
             label={`AMOLED ${isAmoledBlack ? 'On' : 'Off'}`}
             selected={isAmoledBlack}
             onPress={() => setAmoledBlack(!isAmoledBlack)}
