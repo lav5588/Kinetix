@@ -3,7 +3,14 @@ import type { MediaCategory } from '@core/storage/types';
 import type { ScanError, ScanPhase } from '@core/scanner/types';
 
 export type MediaScannerStatus =
-  'idle' | 'checkingPermissions' | 'scanning' | 'indexing' | 'completed' | 'partial' | 'error';
+  | 'idle'
+  | 'checkingPermissions'
+  | 'scanning'
+  | 'indexing'
+  | 'completed'
+  | 'partial'
+  | 'cancelled'
+  | 'error';
 
 export interface MediaScannerStorageStats {
   usedBytes: number | null;
@@ -85,6 +92,7 @@ interface MediaScannerActions {
   completeScan: (completedAtMs?: number) => void;
   markPartial: (error?: ScanError) => void;
   failScan: (error: ScanError) => void;
+  markCancelled: (error: ScanError) => void;
   reset: () => void;
 }
 
@@ -242,6 +250,13 @@ export const useMediaScannerStore = create<MediaScannerStore>((set) => ({
   failScan: (error) =>
     set((state) => ({
       status: 'error',
+      error,
+      errors: [...state.errors, error],
+    })),
+
+  markCancelled: (error) =>
+    set((state) => ({
+      status: 'cancelled',
       error,
       errors: [...state.errors, error],
     })),

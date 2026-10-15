@@ -45,6 +45,8 @@ export interface DocumentDiscoveryResult {
   errors: ScanError[];
 }
 
+export type DocumentDiscoverySummary = Omit<DocumentDiscoveryResult, 'files'>;
+
 const DEFAULT_PAGE_SIZE = 200;
 const MAX_PAGE_SIZE = 500;
 
@@ -88,9 +90,20 @@ export class DocumentScannerAdapter {
   ) {}
 
   async discoverDocuments(): Promise<DocumentDiscoveryResult> {
-    const files = new Map<string, MediaFileRow>();
+    const files: MediaFileRow[] = [];
+    const summary = await this.scanDocuments((file) => {
+      files.push(file);
+    });
+
+    return { ...summary, files };
+  }
+
+  async scanDocuments(
+    onFile: (file: MediaFileRow) => void | Promise<void>,
+  ): Promise<DocumentDiscoverySummary> {
     const identities = new Set<string>();
     const errors: ScanError[] = [];
+    let discoveredCount = 0;
     const pageSize = this.options.pageSize ?? DEFAULT_PAGE_SIZE;
 
     if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
@@ -103,7 +116,6 @@ export class DocumentScannerAdapter {
       return {
         status: 'partial',
         accessStatus: 'unsupported',
-        files: [],
         discoveredCount: 0,
         errors: [
           toScanError(
@@ -123,7 +135,6 @@ export class DocumentScannerAdapter {
       return {
         status: 'partial',
         accessStatus: 'denied',
-        files: [],
         discoveredCount: 0,
         errors: [
           toScanError(
@@ -139,7 +150,6 @@ export class DocumentScannerAdapter {
       return {
         status: 'partial',
         accessStatus,
-        files: [],
         discoveredCount: 0,
         errors: [
           toScanError(
@@ -200,13 +210,15 @@ export class DocumentScannerAdapter {
       }
 
       for (const row of page.items) {
-        try {
-          if (!row.contentUri || !row.displayName) {
-            errors.push(toScanError('Document row is missing its content URI or display name.'));
-            continue;
-          }
+        let file: MediaFileRow | null;
 
-          const file = normalizeDiscoveredFile({
+        if (!row.contentUri || !row.displayName) {
+          errors.push(toScanError('Document row is missing its content URI or display name.'));
+          continue;
+        }
+
+        try {
+          file = normalizeDiscoveredFile({
             id: row.id,
             filePath: row.contentUri,
             fileName: row.displayName,
@@ -217,16 +229,6 @@ export class DocumentScannerAdapter {
             dateModifiedMs: row.dateModifiedMs,
             dateAddedMs: row.dateAddedMs,
           });
-
-          if (!file || (file.category !== 'PDF' && file.category !== 'OTHER_DOC')) {
-            continue;
-          }
-
-          if (!identities.has(file.file_path) && !identities.has(file.id)) {
-            files.set(file.file_path, file);
-            identities.add(file.file_path);
-            identities.add(file.id);
-          }
         } catch (error) {
           errors.push(
             toScanError(
@@ -235,6 +237,18 @@ export class DocumentScannerAdapter {
               'INVALID_METADATA',
             ),
           );
+          continue;
+        }
+
+        if (!file || (file.category !== 'PDF' && file.category !== 'OTHER_DOC')) {
+          continue;
+        }
+
+        if (!identities.has(file.file_path) && !identities.has(file.id)) {
+          identities.add(file.file_path);
+          identities.add(file.id);
+          discoveredCount += 1;
+          await onFile(file);
         }
       }
 
@@ -255,13 +269,12 @@ export class DocumentScannerAdapter {
         accessStatus !== 'granted'
           ? 'partial'
           : errors.length > 0
-            ? files.size > 0
+            ? discoveredCount > 0
               ? 'partial'
               : 'failed'
             : 'completed',
       accessStatus,
-      files: Array.from(files.values()),
-      discoveredCount: files.size,
+      discoveredCount,
       errors,
     };
   }

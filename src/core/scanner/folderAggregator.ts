@@ -8,29 +8,31 @@ export interface FolderAggregate extends FolderIndexRow {
 const folderKey = (folderPath: string, category: MediaCategory): string =>
   `${category}\u0000${folderPath}`;
 
-export const aggregateFolders = (files: readonly MediaFileRow[]): FolderAggregate[] => {
-  const aggregates = new Map<
-    string,
-    FolderAggregate & { fileIdentities: Set<string>; thumbnailModified: number }
-  >();
-  const seenIdentities = new Set<string>();
+type MutableFolderAggregate = FolderAggregate & {
+  fileIdentities: Set<string>;
+  thumbnailModified: number;
+};
 
-  for (const file of files) {
+export class FolderAggregationAccumulator {
+  private readonly aggregates = new Map<string, MutableFolderAggregate>();
+  private readonly seenIdentities = new Set<string>();
+
+  add(file: MediaFileRow): boolean {
     if (!file.file_path) {
-      continue;
+      return false;
     }
 
-    const identity = file.id || file.file_path;
+    const identity = `${file.category}\u0000${file.id || file.file_path}`;
 
-    if (seenIdentities.has(identity) || seenIdentities.has(file.file_path)) {
-      continue;
+    if (this.seenIdentities.has(identity) || this.seenIdentities.has(file.file_path)) {
+      return false;
     }
 
-    seenIdentities.add(identity);
-    seenIdentities.add(file.file_path);
+    this.seenIdentities.add(identity);
+    this.seenIdentities.add(file.file_path);
 
     const key = folderKey(file.folder_path, file.category);
-    let aggregate = aggregates.get(key);
+    let aggregate = this.aggregates.get(key);
 
     if (!aggregate) {
       aggregate = {
@@ -46,11 +48,11 @@ export const aggregateFolders = (files: readonly MediaFileRow[]): FolderAggregat
         fileIdentities: new Set<string>(),
         thumbnailModified: -1,
       };
-      aggregates.set(key, aggregate);
+      this.aggregates.set(key, aggregate);
     }
 
     if (aggregate.fileIdentities.has(identity)) {
-      continue;
+      return false;
     }
 
     aggregate.fileIdentities.add(identity);
@@ -75,11 +77,25 @@ export const aggregateFolders = (files: readonly MediaFileRow[]): FolderAggregat
       aggregate.thumbnail_uri = file.file_path;
       aggregate.thumbnailModified = file.date_modified;
     }
+
+    return true;
   }
 
-  return Array.from(
-    aggregates.values(),
-    ({ fileIdentities: _fileIdentities, thumbnailModified: _thumbnailModified, ...aggregate }) =>
-      aggregate,
-  );
+  getAggregates(): FolderAggregate[] {
+    return Array.from(
+      this.aggregates.values(),
+      ({ fileIdentities: _fileIdentities, thumbnailModified: _thumbnailModified, ...aggregate }) =>
+        aggregate,
+    );
+  }
+}
+
+export const aggregateFolders = (files: readonly MediaFileRow[]): FolderAggregate[] => {
+  const accumulator = new FolderAggregationAccumulator();
+
+  for (const file of files) {
+    accumulator.add(file);
+  }
+
+  return accumulator.getAggregates();
 };

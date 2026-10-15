@@ -61,6 +61,30 @@ describe('DocumentScannerAdapter', () => {
     expect(result.discoveredCount).toBe(3);
   });
 
+  it('streams normalized documents to the consumer without retaining a result inventory', async () => {
+    const nativeModule: NativeDocumentScannerModule = {
+      getAccessStatus: jest.fn().mockResolvedValue('granted'),
+      queryDocuments: jest.fn().mockResolvedValue(
+        createPage({
+          items: [createRow(), createRow({ id: '2', contentUri: 'content://media/files/2' })],
+        }),
+      ),
+    };
+    const adapter = new DocumentScannerAdapter(nativeModule);
+    const received: string[] = [];
+    const summary = await adapter.scanDocuments((file) => {
+      received.push(file.file_path);
+    });
+
+    expect(received).toEqual(['content://media/external/file/1', 'content://media/files/2']);
+    expect(summary).toMatchObject({
+      status: 'completed',
+      discoveredCount: 2,
+      errors: [],
+    });
+    expect(summary).not.toHaveProperty('files');
+  });
+
   it.each([
     ['denied', 'All Files Access is not granted; document discovery was skipped.'],
     ['unsupported', 'Broad document discovery is not supported on this Android version.'],

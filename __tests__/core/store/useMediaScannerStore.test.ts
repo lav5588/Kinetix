@@ -54,6 +54,20 @@ describe('useMediaScannerStore', () => {
     expect(getStore().errors).toEqual([warning, failure]);
   });
 
+  it('marks a cancelled scan separately from completed and failed scans', () => {
+    const cancellation = createError({
+      code: 'SCAN_CANCELLED',
+      message: 'Scan cancelled.',
+    });
+
+    getStore().startScan(100);
+    getStore().markCancelled(cancellation);
+
+    expect(getStore().status).toBe('cancelled');
+    expect(getStore().error).toEqual(cancellation);
+    expect(getStore().lastSuccessfulScanTimestampMs).toBeNull();
+  });
+
   it('sets and aggregates category counts while normalizing invalid counts', () => {
     getStore().setCategoryCounts({ AUDIO: 2, PDF: 3, VIDEO: -10 });
     getStore().incrementCategoryCount('AUDIO', 4);

@@ -6,15 +6,29 @@ export {
   shouldIncludeDiscoveredFile,
 } from './pathFilters';
 export { normalizeDiscoveredFile } from './metadataNormalizer';
-export { aggregateFolders } from './folderAggregator';
+export { aggregateFolders, FolderAggregationAccumulator } from './folderAggregator';
 export type { FolderAggregate } from './folderAggregator';
 export { ScannerIndexWriter, scannerIndexWriter } from './ScannerIndexWriter';
+export { FileScannerService, fileScannerService } from './FileScannerService';
 export type {
   CompletedScanScope,
   ScannerIndexWriterDependencies,
   ScannerIndexWriterOptions,
   ScannerIndexWriteResult,
 } from './ScannerIndexWriter';
+export type {
+  FileScannerDocumentAdapter,
+  FileScannerIndexWriter,
+  FileScannerMediaAdapter,
+  FileScannerOptions,
+  FileScannerPermissionManager,
+  FileScannerPhase,
+  FileScannerProgress,
+  FileScannerResult,
+  FileScannerResultStatus,
+  FileScannerServiceDependencies,
+  FileScannerStore,
+} from './FileScannerService';
 export { MediaStoreAdapter, mediaStoreAdapter } from './MediaStoreAdapter';
 export { DocumentScannerAdapter, documentScannerAdapter } from './DocumentScannerAdapter';
 export type {
@@ -27,6 +41,7 @@ export type {
 export type {
   DocumentAccessStatus,
   DocumentDiscoveryResult,
+  DocumentDiscoverySummary,
   DocumentScannerAdapterOptions,
   DocumentScannerPage,
   DocumentScannerRow,
