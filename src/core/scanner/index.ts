@@ -8,6 +8,13 @@ export {
 export { normalizeDiscoveredFile } from './metadataNormalizer';
 export { aggregateFolders } from './folderAggregator';
 export type { FolderAggregate } from './folderAggregator';
+export { ScannerIndexWriter, scannerIndexWriter } from './ScannerIndexWriter';
+export type {
+  CompletedScanScope,
+  ScannerIndexWriterDependencies,
+  ScannerIndexWriterOptions,
+  ScannerIndexWriteResult,
+} from './ScannerIndexWriter';
 export { MediaStoreAdapter, mediaStoreAdapter } from './MediaStoreAdapter';
 export { DocumentScannerAdapter, documentScannerAdapter } from './DocumentScannerAdapter';
 export type {
