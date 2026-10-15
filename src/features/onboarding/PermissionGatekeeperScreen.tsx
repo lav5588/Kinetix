@@ -7,6 +7,8 @@ import {
   permissionManager,
   type PermissionSnapshot,
 } from '@core/permissions';
+import { fileScannerService } from '@core/scanner';
+import { useMediaScannerStore } from '@core/store';
 import { useAppTheme } from '@core/theme';
 
 export interface PermissionGatekeeperScreenProps {
@@ -21,6 +23,7 @@ export function PermissionGatekeeperScreen({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const readyNotifiedRef = useRef(false);
+  const previousAppStateRef = useRef(AppState.currentState);
 
   const refreshPermissions = useCallback(async () => {
     setIsLoading(true);
@@ -28,7 +31,13 @@ export function PermissionGatekeeperScreen({
 
     try {
       const nextSnapshot = await permissionManager.getPermissionSnapshot();
+      useMediaScannerStore.getState().setPermissionSnapshot(nextSnapshot, Date.now());
       setSnapshot(nextSnapshot);
+      try {
+        await fileScannerService.refreshStorageStats();
+      } catch {
+        setError('Unable to refresh device storage capacity right now.');
+      }
     } catch {
       setError('Unable to check permission state right now.');
     } finally {
@@ -40,7 +49,9 @@ export function PermissionGatekeeperScreen({
     void refreshPermissions();
 
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
+      const wasInactive = previousAppStateRef.current !== 'active';
+      previousAppStateRef.current = state;
+      if (state === 'active' && wasInactive) {
         void refreshPermissions();
       }
     });

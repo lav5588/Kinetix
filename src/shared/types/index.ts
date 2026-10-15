@@ -1,4 +1,4 @@
-export type MediaCategory = 'audio' | 'video' | 'photo' | 'pdf' | 'doc';
+export type MediaCategory = 'AUDIO' | 'VIDEO' | 'PHOTO' | 'PDF' | 'OTHER_DOC';
 
 export type SortField = 'name' | 'date' | 'size' | 'duration';
 
