@@ -5,14 +5,21 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { initializeDatabaseSchema } from '@core/storage';
 import { AppThemeProvider, CATEGORY_ACCENT_COLORS, useAppTheme, useThemeStore } from '@core/theme';
+import { PermissionGatekeeperScreen } from '@features/onboarding';
 import type { ThemePalette } from '@core/theme';
 
 function App(): React.JSX.Element {
+  const [permissionsReady, setPermissionsReady] = useState(false);
+
   return (
     <AppThemeProvider>
       <GestureHandlerRootView style={styles.root}>
         <SafeAreaProvider>
-          <ThemePreviewScreen />
+          {permissionsReady ? (
+            <ThemePreviewScreen />
+          ) : (
+            <PermissionGatekeeperScreen onReady={() => setPermissionsReady(true)} />
+          )}
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </AppThemeProvider>

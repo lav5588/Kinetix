@@ -1,5 +1,4 @@
 import { Platform } from 'react-native';
-import { checkMultiple, requestMultiple, RESULTS } from 'react-native-permissions';
 
 import { allFilesAccess } from './allFilesAccess';
 import { getMediaPermissionsForAndroidLevel } from './permissionPolicy';
@@ -19,6 +18,42 @@ export interface AllFilesAccessCapability {
 export type PermissionManagerOptions = {
   allFilesAccessCapability?: AllFilesAccessCapability;
 };
+
+type RNPermissionsModule = {
+  checkMultiple: (
+    permissions: RuntimeMediaPermission[],
+  ) => Promise<Record<string, PermissionState>>;
+  requestMultiple: (
+    permissions: RuntimeMediaPermission[],
+  ) => Promise<Record<string, PermissionState>>;
+};
+
+function getNativePermissionModule(): RNPermissionsModule | null {
+  try {
+    // Lazy loading lets the permission gate handle binaries missing the native module.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const permissionsModule = require('react-native-permissions') as RNPermissionsModule & {
+      checkMultiple?: (
+        permissions: RuntimeMediaPermission[],
+      ) => Promise<Record<string, PermissionState>>;
+      requestMultiple?: (
+        permissions: RuntimeMediaPermission[],
+      ) => Promise<Record<string, PermissionState>>;
+    };
+
+    if (
+      !permissionsModule ||
+      typeof permissionsModule.checkMultiple !== 'function' ||
+      typeof permissionsModule.requestMultiple !== 'function'
+    ) {
+      return null;
+    }
+
+    return permissionsModule as RNPermissionsModule;
+  } catch {
+    return null;
+  }
+}
 
 export class PermissionManager {
   private readonly allFilesAccessCapability?: AllFilesAccessCapability;
@@ -47,23 +82,29 @@ export class PermissionManager {
     const unavailablePermissions: RuntimeMediaPermission[] = [];
     const limitedPermissions: RuntimeMediaPermission[] = [];
 
+    const grantedResult = 'granted' as const;
+    const deniedResult = 'denied' as const;
+    const blockedResult = 'blocked' as const;
+    const unavailableResult = 'unavailable' as const;
+    const limitedResult = 'limited' as const;
+
     for (const permission of requiredPermissions) {
-      const status = permissionResults[permission] ?? 'unavailable';
+      const status = permissionResults[permission] ?? unavailableResult;
 
       switch (status) {
-        case RESULTS.GRANTED:
+        case grantedResult:
           grantedPermissions.push(permission);
           break;
-        case RESULTS.DENIED:
+        case deniedResult:
           deniedPermissions.push(permission);
           break;
-        case RESULTS.BLOCKED:
+        case blockedResult:
           blockedPermissions.push(permission);
           break;
-        case RESULTS.UNAVAILABLE:
+        case unavailableResult:
           unavailablePermissions.push(permission);
           break;
-        case RESULTS.LIMITED:
+        case limitedResult:
           limitedPermissions.push(permission);
           break;
         case 'restricted':
@@ -153,7 +194,21 @@ export class PermissionManager {
       );
     }
 
-    const permissionResults = await checkMultiple(requiredPermissions);
+    const permissionModule = getNativePermissionModule();
+    const fallbackResults = Object.fromEntries(
+      requiredPermissions.map((permission) => [permission, 'unavailable' as const]),
+    );
+
+    if (!permissionModule) {
+      const allFilesAccessState = await this.getAllFilesAccessStatus();
+      return this.buildPermissionSnapshot(
+        requiredPermissions,
+        fallbackResults as Record<string, PermissionState>,
+        allFilesAccessState,
+      );
+    }
+
+    const permissionResults = await permissionModule.checkMultiple(requiredPermissions);
     const allFilesAccessState = await this.getAllFilesAccessStatus();
     return this.buildPermissionSnapshot(
       requiredPermissions,
@@ -169,8 +224,13 @@ export class PermissionManager {
       return this.checkPermissions();
     }
 
+    const permissionModule = getNativePermissionModule();
+    if (!permissionModule) {
+      return this.checkPermissions();
+    }
+
     try {
-      const requestedResults = await requestMultiple(requiredPermissions);
+      const requestedResults = await permissionModule.requestMultiple(requiredPermissions);
       const allFilesAccessState = await this.getAllFilesAccessStatus();
       return this.buildPermissionSnapshot(
         requiredPermissions,
