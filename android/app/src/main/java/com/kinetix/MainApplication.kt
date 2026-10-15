@@ -22,6 +22,7 @@ class MainApplication : Application(), ReactApplication {
               add(RNPermissionsPackage())
               add(AllFilesAccessPackage())
               add(MediaStorePackage())
+              add(DocumentScannerPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"

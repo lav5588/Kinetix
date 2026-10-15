@@ -7,6 +7,7 @@ export {
 } from './pathFilters';
 export { normalizeDiscoveredFile } from './metadataNormalizer';
 export { MediaStoreAdapter, mediaStoreAdapter } from './MediaStoreAdapter';
+export { DocumentScannerAdapter, documentScannerAdapter } from './DocumentScannerAdapter';
 export type {
   MediaStoreAdapterOptions,
   MediaStoreCategory,
@@ -14,6 +15,14 @@ export type {
   MediaStoreRow,
   NativeMediaStoreModule,
 } from './MediaStoreAdapter';
+export type {
+  DocumentAccessStatus,
+  DocumentDiscoveryResult,
+  DocumentScannerAdapterOptions,
+  DocumentScannerPage,
+  DocumentScannerRow,
+  NativeDocumentScannerModule,
+} from './DocumentScannerAdapter';
 export { DEFAULT_MIN_AUDIO_DURATION_MS } from './types';
 export type {
   DiscoveredFile,
