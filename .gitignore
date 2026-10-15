@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Android / Gradle generated files and local SDK configuration
+android/.gradle/
+android/**/build/
+android/**/.cxx/
+android/local.properties
+android/captures/
+android/.externalNativeBuild/
+
+# iOS generated files
+ios/Pods/
+ios/build/
+ios/DerivedData/
+ios/**/*.xcuserstate
+ios/**/xcuserdata/
+
+# Local Gradle distribution archives
+gradle-*-bin.zip
+gradle-*-all.zip
+
+# Metro, tool, and operating system caches
+.metro-health-check*
+.eslintcache
+.DS_Store
+Thumbs.db
+
+# Logs and local environment files
+*.log
+.env
+.env.*
+!.env.example
