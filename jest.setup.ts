@@ -1,5 +1,105 @@
 import 'react-native-gesture-handler/jestSetup';
 
+type SqlValue = string | number | boolean | null;
+type SqlParams = SqlValue[];
+type SqlExecutionRecord = { query: string; params: SqlParams };
+
+type SqlRow = Record<string, SqlValue>;
+
+jest.mock('@op-engineering/op-sqlite', () => {
+  const sqliteMockState = {
+    executedQueries: [] as SqlExecutionRecord[],
+    rowsByQuery: new Map<string, SqlRow[]>(),
+    reset: () => {
+      sqliteMockState.executedQueries = [];
+      sqliteMockState.rowsByQuery.clear();
+    },
+  };
+
+  (globalThis as { __sqliteMockState?: typeof sqliteMockState }).__sqliteMockState = sqliteMockState;
+
+  const executeSqlMock = jest.fn(async (query: string, params: SqlParams = []) => {
+    sqliteMockState.executedQueries.push({ query, params });
+    const rows = sqliteMockState.rowsByQuery.get(query) ?? [];
+
+    return {
+      rows,
+      rowsAffected: 0,
+      insertId: undefined,
+      columnNames: rows[0] ? Object.keys(rows[0]) : [],
+      rawRows: [],
+      metadata: [],
+    };
+  });
+
+  const executeBatchMock = jest.fn(async (commands: Array<[string, SqlParams?]>) => {
+    commands.forEach(([query, params]) => {
+      sqliteMockState.executedQueries.push({ query, params: params ?? [] });
+    });
+
+    return { rowsAffected: commands.length };
+  });
+
+  const openMock = jest.fn(() => ({
+    execute: executeSqlMock,
+    executeBatch: executeBatchMock,
+    executeSync: jest.fn((query: string, params: SqlParams = []) => {
+      sqliteMockState.executedQueries.push({ query, params });
+      return {
+        rows: sqliteMockState.rowsByQuery.get(query) ?? [],
+        rowsAffected: 0,
+        insertId: undefined,
+        columnNames: [],
+        rawRows: [],
+        metadata: [],
+      };
+    }),
+    close: jest.fn(),
+    closeAsync: jest.fn(async () => undefined),
+    interrupt: jest.fn(),
+    delete: jest.fn(),
+    attach: jest.fn(),
+    detach: jest.fn(),
+    transaction: jest.fn(async () => undefined),
+    setReservedBytes: jest.fn(),
+    getReservedBytes: jest.fn(() => 0),
+    flushPendingReactiveQueries: jest.fn(async () => undefined),
+    commitHook: jest.fn(),
+    rollbackHook: jest.fn(),
+    updateHook: jest.fn(),
+    loadFile: jest.fn(async () => ({ commands: 0, rowsAffected: 0 })),
+    prepareStatement: jest.fn(),
+    executeRaw: jest.fn(async (query: string, params: SqlParams = []) => ({
+      rawRows: [],
+      columnNames: [],
+      rowsAffected: 0,
+      insertId: undefined,
+      rows: sqliteMockState.rowsByQuery.get(query) ?? [],
+      params,
+    })),
+    executeRawSync: jest.fn((query: string, params: SqlParams = []) => ({
+      rawRows: [],
+      columnNames: [],
+      rowsAffected: 0,
+      insertId: undefined,
+      rows: sqliteMockState.rowsByQuery.get(query) ?? [],
+      params,
+    })),
+    getDbPath: jest.fn(() => ':memory:'),
+    reactiveExecute: jest.fn(() => () => undefined),
+    sync: jest.fn(),
+    loadExtension: jest.fn(),
+  }));
+
+  return {
+    __esModule: true,
+    open: openMock,
+    executeSql: executeSqlMock,
+    executeBatch: executeBatchMock,
+    __sqliteMockState: sqliteMockState,
+  };
+});
+
 jest.mock('react-native-mmkv', () => {
   const stores = new Map<string, Map<string, string | number | boolean>>();
 
@@ -55,12 +155,14 @@ jest.mock('react-native-mmkv', () => {
 });
 
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+
 jest.mock('react-native-safe-area-context', () => {
   const React = require('react');
+  const { createContext } = React;
   const { View } = require('react-native');
   const insets = { top: 0, right: 0, bottom: 0, left: 0 };
-  const SafeAreaInsetsContext = React.createContext(insets);
-  const SafeAreaFrameContext = React.createContext({
+  const SafeAreaInsetsContext = createContext(insets);
+  const SafeAreaFrameContext = createContext({
     x: 0,
     y: 0,
     width: 0,
