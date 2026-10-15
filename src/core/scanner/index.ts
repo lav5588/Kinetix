@@ -6,6 +6,8 @@ export {
   shouldIncludeDiscoveredFile,
 } from './pathFilters';
 export { normalizeDiscoveredFile } from './metadataNormalizer';
+export { aggregateFolders } from './folderAggregator';
+export type { FolderAggregate } from './folderAggregator';
 export { MediaStoreAdapter, mediaStoreAdapter } from './MediaStoreAdapter';
 export { DocumentScannerAdapter, documentScannerAdapter } from './DocumentScannerAdapter';
 export type {
