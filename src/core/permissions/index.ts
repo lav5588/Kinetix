@@ -13,4 +13,5 @@ export {
   type AllFilesAccessCapability,
   type PermissionManagerOptions,
 } from './PermissionManager';
+export { allFilesAccess, checkAllFilesAccess, openAllFilesAccessSettings } from './allFilesAccess';
 export { getMediaPermissionsForAndroidLevel, requiresAllFilesAccess } from './permissionPolicy';

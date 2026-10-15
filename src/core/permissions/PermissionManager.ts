@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { checkMultiple, requestMultiple, RESULTS } from 'react-native-permissions';
 
+import { allFilesAccess } from './allFilesAccess';
 import { getMediaPermissionsForAndroidLevel } from './permissionPolicy';
 import type {
   AllFilesAccessState,
@@ -189,4 +190,6 @@ export class PermissionManager {
   }
 }
 
-export const permissionManager = new PermissionManager();
+export const permissionManager = new PermissionManager({
+  allFilesAccessCapability: allFilesAccess,
+});
