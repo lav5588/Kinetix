@@ -7,6 +7,8 @@ export type RuntimeMediaPermission =
   | 'android.permission.READ_MEDIA_IMAGES';
 
 export type PermissionState = PermissionStatus | 'restricted';
+export type AllFilesAccessState =
+  'not_applicable' | 'pending' | 'granted' | 'denied' | 'unavailable' | 'error';
 
 export type PermissionStatusRecord = Partial<Record<RuntimeMediaPermission, PermissionState>>;
 
@@ -19,6 +21,7 @@ export type PermissionSnapshot = {
   limitedPermissions: RuntimeMediaPermission[];
   allFilesAccessRequired: boolean;
   allFilesAccessEnabled: boolean | null;
+  allFilesAccessStatus: AllFilesAccessState;
   mediaPermissionsReady: boolean;
   status: PermissionState;
 };

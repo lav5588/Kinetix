@@ -1,4 +1,5 @@
 export type {
+  AllFilesAccessState,
   PermissionPolicyResult,
   PermissionSnapshot,
   PermissionState,
@@ -6,4 +7,10 @@ export type {
   RuntimeMediaPermission,
 } from './types';
 
+export {
+  PermissionManager,
+  permissionManager,
+  type AllFilesAccessCapability,
+  type PermissionManagerOptions,
+} from './PermissionManager';
 export { getMediaPermissionsForAndroidLevel, requiresAllFilesAccess } from './permissionPolicy';
