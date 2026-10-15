@@ -23,6 +23,7 @@ class MainApplication : Application(), ReactApplication {
               add(AllFilesAccessPackage())
               add(MediaStorePackage())
               add(DocumentScannerPackage())
+              add(DeviceStorageStatsPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"

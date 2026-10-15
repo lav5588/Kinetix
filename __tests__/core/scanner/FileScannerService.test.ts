@@ -50,6 +50,35 @@ const createStoreDependency = () => ({
   getState: () => useMediaScannerStore.getState(),
 });
 
+const createStagedIndexWriter = (
+  overrides: Partial<FileScannerIndexWriter> = {},
+): FileScannerIndexWriter => {
+  let filesStaged = 0;
+  let foldersStaged = 0;
+
+  return {
+    beginScanStaging: jest.fn(async () => {
+      filesStaged = 0;
+      foldersStaged = 0;
+    }),
+    stageIndex: jest.fn(async ({ files, folders }) => {
+      filesStaged += files.length;
+      foldersStaged += folders.length;
+      return { filesStaged: files.length, foldersStaged: folders.length };
+    }),
+    commitScanStaging: jest.fn(async () => ({
+      filesStaged,
+      foldersStaged,
+      staleFilesRemoved: 0,
+    })),
+    discardScanStaging: jest.fn(async () => {
+      filesStaged = 0;
+      foldersStaged = 0;
+    }),
+    ...overrides,
+  };
+};
+
 const emptyDocumentAdapter = {
   discoverDocuments: jest.fn().mockResolvedValue({
     status: 'completed',
@@ -99,13 +128,7 @@ describe('FileScannerService', () => {
         }
       }),
     };
-    const writeIndex = jest
-      .fn()
-      .mockImplementation(async ({ files }: { files: readonly MediaFileRow[] }) => ({
-        filesUpserted: files.length,
-        foldersUpserted: 0,
-      }));
-    const writer = { writeIndex } as FileScannerIndexWriter;
+    const writer = createStagedIndexWriter();
     const progress: string[] = [];
     const service = new FileScannerService({
       permissionManager: { getPermissionSnapshot: jest.fn().mockResolvedValue(permissions()) },
@@ -130,11 +153,11 @@ describe('FileScannerService', () => {
       skippedCount: 1,
       categoryCounts: { AUDIO: 1, PHOTO: 1, VIDEO: 0, PDF: 0, OTHER_DOC: 0 },
     });
-    expect(writeIndex).toHaveBeenCalledTimes(4);
-    expect(writeIndex.mock.calls[0][0].files).toEqual([first]);
-    expect(writeIndex.mock.calls[1][0].files).toEqual([second]);
-    expect(writeIndex.mock.calls[2][0].folders).toHaveLength(1);
-    expect(writeIndex.mock.calls[3][0].folders).toHaveLength(1);
+    expect(writer.stageIndex).toHaveBeenCalledTimes(4);
+    expect(jest.mocked(writer.stageIndex).mock.calls[0][0].files).toEqual([first]);
+    expect(jest.mocked(writer.stageIndex).mock.calls[1][0].files).toEqual([second]);
+    expect(jest.mocked(writer.stageIndex).mock.calls[2][0].folders).toHaveLength(1);
+    expect(jest.mocked(writer.stageIndex).mock.calls[3][0].folders).toHaveLength(1);
     expect(progress).toContain('completed:3:2');
     const progressCounts = progress.map((entry) => Number(entry.split(':')[1]));
     expect(progressCounts).toEqual([...progressCounts].sort((left, right) => left - right));
@@ -155,7 +178,7 @@ describe('FileScannerService', () => {
       },
       mediaAdapter,
       documentAdapter,
-      indexWriter: { writeIndex: jest.fn() } as unknown as FileScannerIndexWriter,
+      indexWriter: createStagedIndexWriter(),
       store: createStoreDependency(),
       now: () => 100,
     });
@@ -166,6 +189,91 @@ describe('FileScannerService', () => {
     expect(result.errors[0].code).toBe('ACCESS_DENIED');
     expect(mediaAdapter.discoverMedia).not.toHaveBeenCalled();
     expect(documentAdapter.discoverDocuments).not.toHaveBeenCalled();
+  });
+
+  it('discards staged partial results and preserves the previously complete index', async () => {
+    const previousCompleteIndex = [createFile({ id: 'previous', file_path: '/previous.mp3' })];
+    const stagedFiles: MediaFileRow[] = [];
+    const discardScanStaging = jest.fn(async () => {
+      stagedFiles.length = 0;
+    });
+    const commitScanStaging = jest.fn(async () => {
+      previousCompleteIndex.splice(0, previousCompleteIndex.length, ...stagedFiles);
+      return {
+        filesStaged: stagedFiles.length,
+        foldersStaged: 0,
+        staleFilesRemoved: 0,
+      };
+    });
+    const writer: FileScannerIndexWriter = {
+      beginScanStaging: jest.fn(async () => {
+        stagedFiles.length = 0;
+      }),
+      stageIndex: jest.fn(async ({ files }) => {
+        stagedFiles.push(...files);
+        return { filesStaged: files.length, foldersStaged: 0 };
+      }),
+      commitScanStaging,
+      discardScanStaging,
+    };
+    const service = new FileScannerService({
+      permissionManager: { getPermissionSnapshot: jest.fn().mockResolvedValue(permissions()) },
+      mediaAdapter: {
+        discoverMedia: jest.fn(async function* (category) {
+          if (category === 'AUDIO') {
+            yield createFile({ id: 'partial', file_path: '/partial.mp3' });
+            throw new Error('Audio scan was incomplete.');
+          }
+        }),
+      },
+      documentAdapter: emptyDocumentAdapter,
+      indexWriter: writer,
+      store: createStoreDependency(),
+      now: () => 100,
+    });
+
+    const result = await service.startScan({ batchSize: 1 });
+
+    expect(result.status).toBe('partial');
+    expect(writer.stageIndex).toHaveBeenCalledTimes(1);
+    expect(discardScanStaging).toHaveBeenCalledTimes(1);
+    expect(commitScanStaging).not.toHaveBeenCalled();
+    expect(previousCompleteIndex.map(({ id }) => id)).toEqual(['previous']);
+    expect(useMediaScannerStore.getState().indexedCount).toBe(0);
+    expect(useMediaScannerStore.getState().lastScanStatus).toBe('partial');
+    expect(useMediaScannerStore.getState().lastScanTimestampMs).toBe(100);
+  });
+
+  it('refreshes permission status without launching a scan and exposes explicit rescan', async () => {
+    const getPermissionSnapshot = jest.fn().mockResolvedValue(permissions());
+    const discoverMedia = jest.fn(async function* () {});
+    const service = new FileScannerService({
+      permissionManager: { getPermissionSnapshot },
+      mediaAdapter: { discoverMedia },
+      documentAdapter: emptyDocumentAdapter,
+      indexWriter: createStagedIndexWriter(),
+      store: createStoreDependency(),
+      storageStatsProvider: jest.fn().mockResolvedValue({
+        totalBytes: 10_000,
+        freeBytes: 4_000,
+        usedBytes: 6_000,
+        scope: 'internal_data_volume',
+      }),
+      now: () => 300,
+    });
+
+    await service.refreshPermissions();
+    await service.refreshStorageStats();
+
+    expect(getPermissionSnapshot).toHaveBeenCalledTimes(1);
+    expect(discoverMedia).not.toHaveBeenCalled();
+    expect(useMediaScannerStore.getState().permissionSnapshot).toEqual(permissions());
+    expect(useMediaScannerStore.getState().permissionLastCheckedAtMs).toBe(300);
+    expect(useMediaScannerStore.getState().storageStats.totalBytes).toBe(10_000);
+    expect(useMediaScannerStore.getState().indexedMediaBytes).toBe(0);
+
+    await service.rescan();
+    expect(discoverMedia).toHaveBeenCalled();
   });
 
   it('completes available media as partial when All Files Access is unavailable', async () => {
@@ -187,9 +295,7 @@ describe('FileScannerService', () => {
       },
       mediaAdapter,
       documentAdapter,
-      indexWriter: {
-        writeIndex: jest.fn().mockResolvedValue({ filesUpserted: 1, foldersUpserted: 0 }),
-      },
+      indexWriter: createStagedIndexWriter(),
       store: createStoreDependency(),
       now: () => 100,
     });
@@ -228,12 +334,7 @@ describe('FileScannerService', () => {
         }),
       },
       documentAdapter: emptyDocumentAdapter,
-      indexWriter: {
-        writeIndex: jest.fn().mockImplementation(async ({ files }) => ({
-          filesUpserted: files.length,
-          foldersUpserted: 0,
-        })),
-      },
+      indexWriter: createStagedIndexWriter(),
       store: createStoreDependency(),
       now: () => 100,
     });
@@ -277,12 +378,7 @@ describe('FileScannerService', () => {
         };
       }),
     };
-    const writer: FileScannerIndexWriter = {
-      writeIndex: jest.fn().mockImplementation(async ({ files }) => ({
-        filesUpserted: files.length,
-        foldersUpserted: 0,
-      })),
-    };
+    const writer = createStagedIndexWriter();
     const service = new FileScannerService({
       permissionManager: { getPermissionSnapshot: jest.fn().mockResolvedValue(permissions()) },
       mediaAdapter: { discoverMedia: jest.fn(async function* () {}) },
@@ -297,9 +393,9 @@ describe('FileScannerService', () => {
     expect(result.status).toBe('completed');
     expect(result.indexedCount).toBe(2);
     expect(documentAdapter.discoverDocuments).not.toHaveBeenCalled();
-    expect(writer.writeIndex).toHaveBeenCalledTimes(3);
-    expect(writer.writeIndex.mock.calls[0][0].files).toHaveLength(1);
-    expect(writer.writeIndex.mock.calls[1][0].files).toHaveLength(1);
+    expect(writer.stageIndex).toHaveBeenCalledTimes(3);
+    expect(jest.mocked(writer.stageIndex).mock.calls[0][0].files).toHaveLength(1);
+    expect(jest.mocked(writer.stageIndex).mock.calls[1][0].files).toHaveLength(1);
   });
 
   it('cancels without reporting success and does not start overlapping scans', async () => {
@@ -314,7 +410,7 @@ describe('FileScannerService', () => {
       permissionManager: { getPermissionSnapshot },
       mediaAdapter: { discoverMedia: jest.fn(async function* () {}) },
       documentAdapter: emptyDocumentAdapter,
-      indexWriter: { writeIndex: jest.fn() } as unknown as FileScannerIndexWriter,
+      indexWriter: createStagedIndexWriter(),
       store: createStoreDependency(),
       now: () => 100,
     });
@@ -359,12 +455,7 @@ describe('FileScannerService', () => {
       permissionManager: { getPermissionSnapshot: jest.fn().mockResolvedValue(permissions()) },
       mediaAdapter,
       documentAdapter: emptyDocumentAdapter,
-      indexWriter: {
-        writeIndex: jest.fn().mockImplementation(async ({ files }) => ({
-          filesUpserted: files.length,
-          foldersUpserted: 0,
-        })),
-      },
+      indexWriter: createStagedIndexWriter(),
       store: createStoreDependency(),
       now: () => 100,
     });
@@ -374,7 +465,7 @@ describe('FileScannerService', () => {
     expect(result.status).toBe('partial');
     expect(result.partialSources).toContain('audio');
     expect(result.errors[0].message).toBe('Audio collection disappeared.');
-    expect(result.indexedCount).toBe(2);
+    expect(result.indexedCount).toBe(0);
   });
 
   it('marks fatal database failures as failed and does not report completion', async () => {
@@ -388,9 +479,9 @@ describe('FileScannerService', () => {
         }),
       },
       documentAdapter: emptyDocumentAdapter,
-      indexWriter: {
-        writeIndex: jest.fn().mockRejectedValue(new Error('Database write failed.')),
-      },
+      indexWriter: createStagedIndexWriter({
+        stageIndex: jest.fn().mockRejectedValue(new Error('Database write failed.')),
+      }),
       store: createStoreDependency(),
       now: () => 100,
     });
@@ -416,9 +507,7 @@ describe('FileScannerService', () => {
         }
       }),
     };
-    const writer: FileScannerIndexWriter = {
-      writeIndex: jest.fn().mockResolvedValue({ filesUpserted: 0, foldersUpserted: 0 }),
-    };
+    const writer = createStagedIndexWriter();
     const service = new FileScannerService({
       permissionManager: { getPermissionSnapshot: jest.fn().mockResolvedValue(permissions()) },
       mediaAdapter,
@@ -446,9 +535,7 @@ describe('FileScannerService', () => {
       folder_path: 'DCIM/.private',
       duration_ms: null,
     });
-    const writer: FileScannerIndexWriter = {
-      writeIndex: jest.fn().mockResolvedValue({ filesUpserted: 0, foldersUpserted: 0 }),
-    };
+    const writer = createStagedIndexWriter();
     const service = new FileScannerService({
       permissionManager: { getPermissionSnapshot: jest.fn().mockResolvedValue(permissions()) },
       mediaAdapter: {

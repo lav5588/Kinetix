@@ -104,22 +104,49 @@ describe('useMediaScannerStore', () => {
     expect(getStore().indexedCount).toBe(0);
   });
 
-  it('stores optional used/free space and formatted GiB values', () => {
-    const gibibyte = 1024 ** 3;
-    getStore().setStorageStats({ usedBytes: 2 * gibibyte, freeBytes: 1.5 * gibibyte });
-
-    expect(getStore().storageStats).toEqual({
-      usedBytes: 2 * gibibyte,
-      freeBytes: 1.5 * gibibyte,
-      totalBytes: 3.5 * gibibyte,
-      usedGb: '2.00 GB',
-      freeGb: '1.50 GB',
+  it('stores optional used/free space and formats decimal GB consistently', () => {
+    const gigabyte = 1_000_000_000;
+    getStore().setStorageStats({
+      usedBytes: 2 * gigabyte,
+      freeBytes: 1.5 * gigabyte,
+      scope: 'internal_data_volume',
     });
 
-    getStore().setStorageStats({ usedBytes: null, freeBytes: Number.NaN });
+    expect(getStore().storageStats).toEqual({
+      usedBytes: 2 * gigabyte,
+      freeBytes: 1.5 * gigabyte,
+      totalBytes: 3.5 * gigabyte,
+      usedGb: '2.00 GB',
+      freeGb: '1.50 GB',
+      scope: 'internal_data_volume',
+    });
+
+    getStore().setStorageStats({
+      usedBytes: null,
+      freeBytes: Number.NaN,
+      totalBytes: null,
+      scope: null,
+    });
     expect(getStore().storageStats.usedBytes).toBeNull();
     expect(getStore().storageStats.freeBytes).toBeNull();
     expect(getStore().storageStats.totalBytes).toBeNull();
+    expect(getStore().storageStats.scope).toBeNull();
+  });
+
+  it('keeps last scan metadata and indexed media size separate from device capacity', () => {
+    getStore().setLastScanResult('partial', 250);
+    getStore().setIndexedMediaBytes(12_000);
+    getStore().setStorageStats({
+      usedBytes: 100_000,
+      freeBytes: 200_000,
+      totalBytes: 300_000,
+      scope: 'internal_data_volume',
+    });
+
+    expect(getStore().lastScanStatus).toBe('partial');
+    expect(getStore().lastScanTimestampMs).toBe(250);
+    expect(getStore().indexedMediaBytes).toBe(12_000);
+    expect(getStore().storageStats.totalBytes).toBe(300_000);
   });
 
   it('resets all scan state and the last successful scan timestamp', () => {

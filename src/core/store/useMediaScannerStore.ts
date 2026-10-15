@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import type { PermissionSnapshot } from '@core/permissions/types';
+import { formatBytesAsGigabytes } from '@core/scanner/storageStats';
 import type { MediaCategory } from '@core/storage/types';
 import type { ScanError, ScanPhase } from '@core/scanner/types';
 
@@ -18,7 +20,11 @@ export interface MediaScannerStorageStats {
   totalBytes: number | null;
   usedGb: string | null;
   freeGb: string | null;
+  scope: 'internal_data_volume' | null;
 }
+
+export type MediaScannerLastScanStatus =
+  'completed' | 'partial' | 'cancelled' | 'error' | 'permission_required';
 
 export interface MediaScannerProgressUpdate {
   phase?: ScanPhase;
@@ -30,7 +36,6 @@ export interface MediaScannerProgressUpdate {
 }
 
 const MEDIA_CATEGORIES: MediaCategory[] = ['AUDIO', 'VIDEO', 'PHOTO', 'PDF', 'OTHER_DOC'];
-const BYTES_PER_GIGABYTE = 1024 ** 3;
 
 const createEmptyCategoryCounts = (): Record<MediaCategory, number> => ({
   AUDIO: 0,
@@ -45,9 +50,6 @@ const normalizeCount = (value: number): number =>
 
 const normalizeOptionalBytes = (value: number | null | undefined): number | null =>
   value != null && Number.isFinite(value) && value >= 0 ? Math.trunc(value) : null;
-
-const formatGigabytes = (bytes: number | null): string | null =>
-  bytes == null ? null : `${(bytes / BYTES_PER_GIGABYTE).toFixed(2)} GB`;
 
 const normalizeCategoryCounts = (
   values: Partial<Record<MediaCategory, number>>,
@@ -77,6 +79,11 @@ interface MediaScannerData {
   storageStats: MediaScannerStorageStats;
   scanStartedAtMs: number | null;
   lastSuccessfulScanTimestampMs: number | null;
+  lastScanStatus: MediaScannerLastScanStatus | null;
+  lastScanTimestampMs: number | null;
+  indexedMediaBytes: number;
+  permissionSnapshot: PermissionSnapshot | null;
+  permissionLastCheckedAtMs: number | null;
   error: ScanError | null;
   errors: ScanError[];
 }
@@ -88,7 +95,15 @@ interface MediaScannerActions {
   updateProgress: (update: MediaScannerProgressUpdate) => void;
   setCategoryCounts: (counts: Partial<Record<MediaCategory, number>>) => void;
   incrementCategoryCount: (category: MediaCategory, amount?: number) => void;
-  setStorageStats: (stats: { usedBytes?: number | null; freeBytes?: number | null }) => void;
+  setStorageStats: (stats: {
+    usedBytes?: number | null;
+    freeBytes?: number | null;
+    totalBytes?: number | null;
+    scope?: 'internal_data_volume' | null;
+  }) => void;
+  setIndexedMediaBytes: (bytes: number) => void;
+  setLastScanResult: (status: MediaScannerLastScanStatus, timestampMs: number) => void;
+  setPermissionSnapshot: (snapshot: PermissionSnapshot, checkedAtMs: number) => void;
   completeScan: (completedAtMs?: number) => void;
   markPartial: (error?: ScanError) => void;
   failScan: (error: ScanError) => void;
@@ -111,9 +126,15 @@ const INITIAL_DATA: MediaScannerData = {
     totalBytes: null,
     usedGb: null,
     freeGb: null,
+    scope: null,
   },
   scanStartedAtMs: null,
   lastSuccessfulScanTimestampMs: null,
+  lastScanStatus: null,
+  lastScanTimestampMs: null,
+  indexedMediaBytes: 0,
+  permissionSnapshot: null,
+  permissionLastCheckedAtMs: null,
   error: null,
   errors: [],
 };
@@ -135,6 +156,12 @@ export const useMediaScannerStore = create<MediaScannerStore>((set) => ({
     set((state) => ({
       ...INITIAL_DATA,
       lastSuccessfulScanTimestampMs: state.lastSuccessfulScanTimestampMs,
+      lastScanStatus: state.lastScanStatus,
+      lastScanTimestampMs: state.lastScanTimestampMs,
+      indexedMediaBytes: state.indexedMediaBytes,
+      storageStats: state.storageStats,
+      permissionSnapshot: state.permissionSnapshot,
+      permissionLastCheckedAtMs: state.permissionLastCheckedAtMs,
       status: 'checkingPermissions',
       scanStartedAtMs: startedAtMs,
     })),
@@ -208,26 +235,43 @@ export const useMediaScannerStore = create<MediaScannerStore>((set) => ({
       },
     })),
 
-  setStorageStats: ({ usedBytes, freeBytes }) =>
+  setStorageStats: ({ usedBytes, freeBytes, totalBytes, scope }) =>
     set((state) => {
       const normalizedUsedBytes =
         usedBytes === undefined ? state.storageStats.usedBytes : normalizeOptionalBytes(usedBytes);
       const normalizedFreeBytes =
         freeBytes === undefined ? state.storageStats.freeBytes : normalizeOptionalBytes(freeBytes);
-      const totalBytes =
-        normalizedUsedBytes != null && normalizedFreeBytes != null
-          ? normalizedUsedBytes + normalizedFreeBytes
-          : null;
+      const normalizedTotalBytes =
+        totalBytes === undefined
+          ? normalizedUsedBytes != null && normalizedFreeBytes != null
+            ? normalizedUsedBytes + normalizedFreeBytes
+            : state.storageStats.totalBytes
+          : normalizeOptionalBytes(totalBytes);
 
       return {
         storageStats: {
           usedBytes: normalizedUsedBytes,
           freeBytes: normalizedFreeBytes,
-          totalBytes,
-          usedGb: formatGigabytes(normalizedUsedBytes),
-          freeGb: formatGigabytes(normalizedFreeBytes),
+          totalBytes: normalizedTotalBytes,
+          usedGb: formatBytesAsGigabytes(normalizedUsedBytes),
+          freeGb: formatBytesAsGigabytes(normalizedFreeBytes),
+          scope: scope === undefined ? state.storageStats.scope : scope,
         },
       };
+    }),
+
+  setIndexedMediaBytes: (bytes) => set({ indexedMediaBytes: normalizeOptionalBytes(bytes) ?? 0 }),
+
+  setLastScanResult: (status, timestampMs) =>
+    set({
+      lastScanStatus: status,
+      lastScanTimestampMs: normalizeOptionalBytes(timestampMs),
+    }),
+
+  setPermissionSnapshot: (snapshot, checkedAtMs) =>
+    set({
+      permissionSnapshot: snapshot,
+      permissionLastCheckedAtMs: normalizeOptionalBytes(checkedAtMs),
     }),
 
   completeScan: (completedAtMs = Date.now()) =>

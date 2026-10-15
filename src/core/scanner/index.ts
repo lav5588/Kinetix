@@ -15,6 +15,7 @@ export type {
   ScannerIndexWriterDependencies,
   ScannerIndexWriterOptions,
   ScannerIndexWriteResult,
+  ScannerIndexScanSummary,
 } from './ScannerIndexWriter';
 export type {
   FileScannerDocumentAdapter,
@@ -30,6 +31,8 @@ export type {
   FileScannerStore,
 } from './FileScannerService';
 export { MediaStoreAdapter, mediaStoreAdapter } from './MediaStoreAdapter';
+export { formatBytesAsGigabytes, getDeviceStorageStats } from './storageStats';
+export type { DeviceStorageStats } from './storageStats';
 export { DocumentScannerAdapter, documentScannerAdapter } from './DocumentScannerAdapter';
 export type {
   MediaStoreAdapterOptions,

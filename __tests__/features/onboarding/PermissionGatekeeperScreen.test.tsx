@@ -1,5 +1,6 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
+import { act, render, waitFor } from '@testing-library/react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 
 jest.mock('@core/permissions', () => {
   const permissionManager = {
@@ -39,6 +40,7 @@ jest.mock('@core/theme', () => ({
 }));
 
 import { PermissionGatekeeperScreen } from '@features/onboarding/PermissionGatekeeperScreen';
+import { fileScannerService } from '@core/scanner';
 
 describe('PermissionGatekeeperScreen', () => {
   beforeEach(() => {
@@ -126,5 +128,48 @@ describe('PermissionGatekeeperScreen', () => {
     await waitFor(() => {
       expect(onReady).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it('re-checks permission state when returning to active without repeated active checks', async () => {
+    let stateListener: ((state: AppStateStatus) => void) | null = null;
+    const startScan = jest.spyOn(fileScannerService, 'startScan');
+    const addListener = jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, listener) => {
+      stateListener = listener;
+      return { remove: jest.fn() };
+    });
+    permissionManager.getPermissionSnapshot.mockResolvedValue({
+      requiredPermissions: [],
+      grantedPermissions: [],
+      deniedPermissions: [],
+      blockedPermissions: [],
+      unavailablePermissions: [],
+      limitedPermissions: [],
+      allFilesAccessRequired: false,
+      allFilesAccessEnabled: null,
+      allFilesAccessStatus: 'not_applicable',
+      mediaPermissionsReady: true,
+      status: 'granted',
+    });
+
+    render(<PermissionGatekeeperScreen />);
+    await waitFor(() => {
+      expect(permissionManager.getPermissionSnapshot).toHaveBeenCalledTimes(1);
+    });
+
+    act(() => {
+      stateListener?.('background');
+      stateListener?.('active');
+    });
+    await waitFor(() => {
+      expect(permissionManager.getPermissionSnapshot).toHaveBeenCalledTimes(2);
+    });
+
+    act(() => {
+      stateListener?.('active');
+    });
+    expect(permissionManager.getPermissionSnapshot).toHaveBeenCalledTimes(2);
+    expect(startScan).not.toHaveBeenCalled();
+    addListener.mockRestore();
+    startScan.mockRestore();
   });
 });

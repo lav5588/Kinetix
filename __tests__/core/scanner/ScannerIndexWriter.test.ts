@@ -198,6 +198,47 @@ describe('ScannerIndexWriter', () => {
     expect(batches).toEqual([]);
   });
 
+  it('stages scan batches separately and promotes them only during the commit transaction', async () => {
+    const { dependencies, batches, queries } = createDependencies();
+    const writer = new ScannerIndexWriter({}, dependencies);
+
+    await writer.beginScanStaging();
+    await writer.stageIndex({
+      files: [createFile()],
+      folders: [createFolder()],
+    });
+
+    expect(batches.flat().some(([sql]) => sql.includes('CREATE TEMP TABLE'))).toBe(true);
+    expect(batches.flat().some(([sql]) => sql.includes('INSERT INTO media_files'))).toBe(false);
+    expect(batches.flat().some(([sql]) => sql.includes('INSERT INTO scanner_staged_files'))).toBe(true);
+
+    await writer.commitScanStaging();
+
+    expect(queries.map(({ query }) => query)).toContain(
+      'SELECT COUNT(*) AS count FROM scanner_staged_files',
+    );
+    const commitBatch = batches.at(-1) ?? [];
+    expect(commitBatch[0][0]).toBe('BEGIN IMMEDIATE');
+    expect(commitBatch.some(([sql]) => sql.includes('INSERT INTO media_files'))).toBe(true);
+    expect(commitBatch.some(([sql]) => sql.includes('DELETE FROM media_files'))).toBe(true);
+    expect(commitBatch.at(-1)?.[0]).toBe('COMMIT');
+  });
+
+  it('discards staging data without writing to the complete index', async () => {
+    const { dependencies, batches } = createDependencies();
+    const writer = new ScannerIndexWriter({}, dependencies);
+
+    await writer.beginScanStaging();
+    await writer.stageIndex({ files: [createFile()], folders: [] });
+    await writer.discardScanStaging();
+
+    expect(batches.flat().some(([sql]) => sql.includes('INSERT INTO media_files'))).toBe(false);
+    expect(batches.at(-1)).toEqual([
+      ['DELETE FROM scanner_staged_files'],
+      ['DELETE FROM scanner_staged_folders'],
+    ]);
+  });
+
   it('removes empty folders only after a completed scope has no discovered files', async () => {
     const { dependencies, batches } = createDependencies(['/storage/Music/removed.mp3']);
     const writer = new ScannerIndexWriter({}, dependencies);

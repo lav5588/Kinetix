@@ -21,6 +21,12 @@ export interface ScannerIndexWriteResult {
   staleScopesReconciled: number;
 }
 
+export interface ScannerIndexScanSummary {
+  filesStaged: number;
+  foldersStaged: number;
+  staleFilesRemoved: number;
+}
+
 export interface ScannerIndexWriterDependencies {
   executeBatch: (commands: Array<[string, SqlValue[]?]>) => Promise<unknown>;
   executeSql: (query: string, params?: SqlValue[]) => Promise<unknown>;
@@ -57,6 +63,82 @@ const FILE_UPSERT_SQL = `
 
 const FOLDER_UPSERT_SQL = `
   INSERT INTO folders_index (
+    folder_path, folder_name, category, item_count, total_size_bytes,
+    thumbnail_uri, last_modified, is_excluded
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(folder_path, category) DO UPDATE SET
+    folder_name = excluded.folder_name,
+    item_count = excluded.item_count,
+    total_size_bytes = excluded.total_size_bytes,
+    thumbnail_uri = excluded.thumbnail_uri,
+    last_modified = excluded.last_modified,
+    is_excluded = excluded.is_excluded;
+`;
+
+const CREATE_STAGING_TABLES = [
+  `CREATE TEMP TABLE IF NOT EXISTS scanner_staged_files (
+    id TEXT NOT NULL,
+    file_path TEXT NOT NULL UNIQUE,
+    file_name TEXT NOT NULL,
+    extension TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    category TEXT NOT NULL,
+    folder_path TEXT NOT NULL,
+    folder_name TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    duration_ms INTEGER,
+    width INTEGER,
+    height INTEGER,
+    artist TEXT,
+    album TEXT,
+    date_modified INTEGER NOT NULL,
+    date_added INTEGER NOT NULL,
+    is_hidden INTEGER NOT NULL,
+    is_messenger_media INTEGER NOT NULL,
+    is_favorite INTEGER NOT NULL,
+    is_vaulted INTEGER NOT NULL
+  );`,
+  `CREATE TEMP TABLE IF NOT EXISTS scanner_staged_folders (
+    folder_path TEXT NOT NULL,
+    folder_name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    item_count INTEGER NOT NULL,
+    total_size_bytes INTEGER NOT NULL,
+    thumbnail_uri TEXT,
+    last_modified INTEGER NOT NULL,
+    is_excluded INTEGER NOT NULL,
+    PRIMARY KEY (folder_path, category)
+  );`,
+];
+
+const STAGED_FILE_UPSERT_SQL = `
+  INSERT INTO scanner_staged_files (
+    id, file_path, file_name, extension, mime_type, category, folder_path, folder_name,
+    size_bytes, duration_ms, width, height, artist, album, date_modified, date_added,
+    is_hidden, is_messenger_media, is_favorite, is_vaulted
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(file_path) DO UPDATE SET
+    id = excluded.id,
+    file_name = excluded.file_name,
+    extension = excluded.extension,
+    mime_type = excluded.mime_type,
+    category = excluded.category,
+    folder_path = excluded.folder_path,
+    folder_name = excluded.folder_name,
+    size_bytes = excluded.size_bytes,
+    duration_ms = excluded.duration_ms,
+    width = excluded.width,
+    height = excluded.height,
+    artist = excluded.artist,
+    album = excluded.album,
+    date_modified = excluded.date_modified,
+    date_added = excluded.date_added,
+    is_hidden = excluded.is_hidden,
+    is_messenger_media = excluded.is_messenger_media;
+`;
+
+const STAGED_FOLDER_UPSERT_SQL = `
+  INSERT INTO scanner_staged_folders (
     folder_path, folder_name, category, item_count, total_size_bytes,
     thumbnail_uri, last_modified, is_excluded
   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -240,6 +322,133 @@ export class ScannerIndexWriter {
       staleFilesRemoved,
       staleScopesReconciled,
     };
+  }
+
+  async beginScanStaging(): Promise<void> {
+    await this.dependencies.executeBatch([
+      ...CREATE_STAGING_TABLES.map((query): SqlCommand => [query]),
+      ['DELETE FROM scanner_staged_files'],
+      ['DELETE FROM scanner_staged_folders'],
+    ]);
+  }
+
+  async stageIndex(params: {
+    files: readonly MediaFileRow[];
+    folders: readonly FolderIndexRow[];
+  }): Promise<{ filesStaged: number; foldersStaged: number }> {
+    const files = toUniqueFiles(params.files);
+    const folders = toUniqueFolders(params.folders);
+
+    for (const batch of chunk(files, this.batchSize)) {
+      await this.runTransaction(
+        batch.map((file): SqlCommand => [STAGED_FILE_UPSERT_SQL, fileParams(file)]),
+      );
+    }
+
+    for (const batch of chunk(folders, this.batchSize)) {
+      await this.runTransaction(
+        batch.map((folder): SqlCommand => [STAGED_FOLDER_UPSERT_SQL, folderParams(folder)]),
+      );
+    }
+
+    return { filesStaged: files.length, foldersStaged: folders.length };
+  }
+
+  async commitScanStaging(): Promise<ScannerIndexScanSummary> {
+    const stagedFilesResult = (await this.dependencies.executeSql(
+      'SELECT COUNT(*) AS count FROM scanner_staged_files',
+    )) as { rows?: Array<{ count: number }> };
+    const stagedFoldersResult = (await this.dependencies.executeSql(
+      'SELECT COUNT(*) AS count FROM scanner_staged_folders',
+    )) as { rows?: Array<{ count: number }> };
+    const staleFilesResult = (await this.dependencies.executeSql(
+      `SELECT COUNT(*) AS count FROM media_files AS existing
+      WHERE NOT EXISTS (
+        SELECT 1 FROM scanner_staged_files AS staged
+        WHERE staged.file_path = existing.file_path
+      )`,
+    )) as { rows?: Array<{ count: number }> };
+    const filesStaged = stagedFilesResult.rows?.[0]?.count ?? 0;
+    const foldersStaged = stagedFoldersResult.rows?.[0]?.count ?? 0;
+    const staleFilesRemoved = staleFilesResult.rows?.[0]?.count ?? 0;
+
+    await this.runTransaction([
+      [
+        `INSERT INTO media_files (
+          id, file_path, file_name, extension, mime_type, category, folder_path, folder_name,
+          size_bytes, duration_ms, width, height, artist, album, date_modified, date_added,
+          is_hidden, is_messenger_media, is_favorite, is_vaulted
+        )
+        SELECT id, file_path, file_name, extension, mime_type, category, folder_path, folder_name,
+          size_bytes, duration_ms, width, height, artist, album, date_modified, date_added,
+          is_hidden, is_messenger_media, is_favorite, is_vaulted
+        FROM scanner_staged_files WHERE 1
+        ON CONFLICT(file_path) DO UPDATE SET
+          id = excluded.id,
+          file_name = excluded.file_name,
+          extension = excluded.extension,
+          mime_type = excluded.mime_type,
+          category = excluded.category,
+          folder_path = excluded.folder_path,
+          folder_name = excluded.folder_name,
+          size_bytes = excluded.size_bytes,
+          duration_ms = excluded.duration_ms,
+          width = excluded.width,
+          height = excluded.height,
+          artist = excluded.artist,
+          album = excluded.album,
+          date_modified = excluded.date_modified,
+          date_added = excluded.date_added,
+          is_hidden = excluded.is_hidden,
+          is_messenger_media = excluded.is_messenger_media;`,
+      ],
+      [
+        `DELETE FROM media_files
+        WHERE NOT EXISTS (
+          SELECT 1 FROM scanner_staged_files AS staged
+          WHERE staged.file_path = media_files.file_path
+        );`,
+      ],
+      [
+        `INSERT INTO folders_index (
+          folder_path, folder_name, category, item_count, total_size_bytes,
+          thumbnail_uri, last_modified, is_excluded
+        )
+        SELECT folder_path, folder_name, category, item_count, total_size_bytes,
+          thumbnail_uri, last_modified, is_excluded
+        FROM scanner_staged_folders WHERE 1
+        ON CONFLICT(folder_path, category) DO UPDATE SET
+          folder_name = excluded.folder_name,
+          item_count = excluded.item_count,
+          total_size_bytes = excluded.total_size_bytes,
+          thumbnail_uri = excluded.thumbnail_uri,
+          last_modified = excluded.last_modified,
+          is_excluded = excluded.is_excluded;`,
+      ],
+      [
+        `DELETE FROM folders_index
+        WHERE NOT EXISTS (
+          SELECT 1 FROM scanner_staged_folders AS staged
+          WHERE staged.folder_path = folders_index.folder_path
+            AND staged.category = folders_index.category
+        );`,
+      ],
+      ['DELETE FROM scanner_staged_files'],
+      ['DELETE FROM scanner_staged_folders'],
+    ]);
+
+    return {
+      filesStaged,
+      foldersStaged,
+      staleFilesRemoved,
+    };
+  }
+
+  async discardScanStaging(): Promise<void> {
+    await this.dependencies.executeBatch([
+      ['DELETE FROM scanner_staged_files'],
+      ['DELETE FROM scanner_staged_folders'],
+    ]);
   }
 
   private async runTransaction(commands: SqlCommand[]): Promise<void> {

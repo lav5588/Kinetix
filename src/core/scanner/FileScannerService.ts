@@ -8,6 +8,8 @@ import { FolderAggregationAccumulator } from './folderAggregator';
 import { mediaStoreAdapter } from './MediaStoreAdapter';
 import { scannerIndexWriter } from './ScannerIndexWriter';
 import { isLikelyMessengerPath, shouldIncludeDiscoveredFile } from './pathFilters';
+import { getDeviceStorageStats } from './storageStats';
+import type { DeviceStorageStats } from './storageStats';
 import type { ScanError, ScanOptions } from './types';
 
 export type FileScannerPhase =
@@ -63,10 +65,17 @@ export interface FileScannerDocumentAdapter {
 }
 
 export interface FileScannerIndexWriter {
-  writeIndex(params: {
+  beginScanStaging: () => Promise<void>;
+  stageIndex: (params: {
     files: readonly MediaFileRow[];
     folders: readonly FolderIndexRow[];
-  }): Promise<{ filesUpserted: number; foldersUpserted: number }>;
+  }) => Promise<{ filesStaged: number; foldersStaged: number }>;
+  commitScanStaging: () => Promise<{
+    filesStaged: number;
+    foldersStaged: number;
+    staleFilesRemoved: number;
+  }>;
+  discardScanStaging: () => Promise<void>;
 }
 
 export interface FileScannerStore {
@@ -87,6 +96,18 @@ export interface FileScannerStore {
     markPartial: (error?: ScanError) => void;
     markCancelled: (error: ScanError) => void;
     failScan: (error: ScanError) => void;
+    setLastScanResult?: (
+      status: 'completed' | 'partial' | 'cancelled' | 'error' | 'permission_required',
+      timestampMs: number,
+    ) => void;
+    setIndexedMediaBytes?: (bytes: number) => void;
+    setPermissionSnapshot?: (snapshot: PermissionSnapshot, checkedAtMs: number) => void;
+    setStorageStats?: (stats: {
+      usedBytes?: number | null;
+      freeBytes?: number | null;
+      totalBytes?: number | null;
+      scope?: 'internal_data_volume' | null;
+    }) => void;
   };
 }
 
@@ -96,6 +117,7 @@ export interface FileScannerServiceDependencies {
   documentAdapter: FileScannerDocumentAdapter;
   indexWriter: FileScannerIndexWriter;
   store: FileScannerStore;
+  storageStatsProvider: () => Promise<DeviceStorageStats | null>;
   now: () => number;
 }
 
@@ -146,6 +168,7 @@ export class FileScannerService {
       documentAdapter: dependencies.documentAdapter ?? documentScannerAdapter,
       indexWriter: dependencies.indexWriter ?? scannerIndexWriter,
       store: dependencies.store ?? useMediaScannerStore,
+      storageStatsProvider: dependencies.storageStatsProvider ?? getDeviceStorageStats,
       now: dependencies.now ?? Date.now,
     };
   }
@@ -193,6 +216,27 @@ export class FileScannerService {
     return true;
   }
 
+  async refreshPermissions(): Promise<PermissionSnapshot> {
+    const snapshot = await this.dependencies.permissionManager.getPermissionSnapshot();
+    this.dependencies.store.getState().setPermissionSnapshot?.(snapshot, this.dependencies.now());
+    return snapshot;
+  }
+
+  async refreshStorageStats(): Promise<DeviceStorageStats | null> {
+    const stats = await this.dependencies.storageStatsProvider();
+    this.dependencies.store.getState().setStorageStats?.({
+      usedBytes: stats?.usedBytes ?? null,
+      freeBytes: stats?.freeBytes ?? null,
+      totalBytes: stats?.totalBytes ?? null,
+      scope: stats?.scope ?? null,
+    });
+    return stats;
+  }
+
+  rescan(options: FileScannerOptions = {}): Promise<FileScannerResult> {
+    return this.startScan(options);
+  }
+
   private async runScan(
     options: FileScannerOptions,
     batchSize: number,
@@ -207,8 +251,10 @@ export class FileScannerService {
     const pendingFiles: MediaFileRow[] = [];
     let discoveredCount = 0;
     let indexedCount = 0;
+    let indexedMediaBytes = 0;
     let skippedCount = 0;
     let databaseFailed = false;
+    let stagingStarted = false;
     let permissionSnapshot: PermissionSnapshot;
 
     const emit = (phase: FileScannerPhase, category: MediaCategory | null): void => {
@@ -253,9 +299,8 @@ export class FileScannerService {
 
       emit('indexing', null);
       const batch = pendingFiles.splice(0, pendingFiles.length);
-      let writeResult: { filesUpserted: number; foldersUpserted: number };
       try {
-        writeResult = await this.dependencies.indexWriter.writeIndex({
+        await this.dependencies.indexWriter.stageIndex({
           files: batch,
           folders: [],
         });
@@ -263,7 +308,6 @@ export class FileScannerService {
         databaseFailed = true;
         throw error;
       }
-      indexedCount += writeResult.filesUpserted;
       emit('indexing', null);
     };
 
@@ -276,7 +320,9 @@ export class FileScannerService {
       );
       errors.push(writeError);
       this.dependencies.store.getState().failScan(writeError);
-      return result('failed', this.dependencies.now());
+      const completedAtMs = this.dependencies.now();
+      setLastResult('error', completedAtMs);
+      return result('failed', completedAtMs);
     };
 
     const result = (status: FileScannerResultStatus, completedAtMs: number): FileScannerResult => ({
@@ -292,6 +338,13 @@ export class FileScannerService {
       errors: [...errors],
     });
 
+    const setLastResult = (
+      status: 'completed' | 'partial' | 'cancelled' | 'error' | 'permission_required',
+      timestampMs: number,
+    ): void => {
+      this.dependencies.store.getState().setLastScanResult?.(status, timestampMs);
+    };
+
     const cancelResult = async (): Promise<FileScannerResult> => {
       const cancelledError = createError(
         'SCAN_CANCELLED',
@@ -301,10 +354,8 @@ export class FileScannerService {
       );
 
       try {
-        await flushFiles();
-        const folderRows = aggregateAccumulator.getAggregates();
-        if (folderRows.length > 0) {
-          await this.dependencies.indexWriter.writeIndex({ files: [], folders: folderRows });
+        if (stagingStarted) {
+          await this.dependencies.indexWriter.discardScanStaging();
         }
       } catch (error) {
         const writeError = createError(
@@ -315,12 +366,16 @@ export class FileScannerService {
         );
         errors.push(writeError);
         this.dependencies.store.getState().failScan(writeError);
-        return result('failed', this.dependencies.now());
+        const completedAtMs = this.dependencies.now();
+        setLastResult('error', completedAtMs);
+        return result('failed', completedAtMs);
       }
 
       errors.push(cancelledError);
       this.dependencies.store.getState().markCancelled(cancelledError);
-      return result('cancelled', this.dependencies.now());
+      const completedAtMs = this.dependencies.now();
+      setLastResult('cancelled', completedAtMs);
+      return result('cancelled', completedAtMs);
     };
 
     const processFile = async (file: MediaFileRow): Promise<void> => {
@@ -355,6 +410,7 @@ export class FileScannerService {
       }
 
       pendingFiles.push(file);
+      indexedMediaBytes += Math.max(0, file.size_bytes);
       counts[file.category] += 1;
       if (pendingFiles.length >= batchSize) {
         await flushFiles();
@@ -375,7 +431,9 @@ export class FileScannerService {
       );
       errors.push(permissionError);
       this.dependencies.store.getState().failScan(permissionError);
-      return result('failed', this.dependencies.now());
+      const completedAtMs = this.dependencies.now();
+      setLastResult('error', completedAtMs);
+      return result('failed', completedAtMs);
     }
 
     if (!permissionSnapshot.mediaPermissionsReady) {
@@ -388,11 +446,20 @@ export class FileScannerService {
       errors.push(permissionError);
       partialSources.add('media');
       this.dependencies.store.getState().markPartial(permissionError);
-      return result('permission_required', this.dependencies.now());
+      const completedAtMs = this.dependencies.now();
+      setLastResult('permission_required', completedAtMs);
+      return result('permission_required', completedAtMs);
     }
 
     if (this.cancelRequested) {
       return cancelResult();
+    }
+
+    try {
+      await this.dependencies.indexWriter.beginScanStaging();
+      stagingStarted = true;
+    } catch (error) {
+      return failDatabase(error);
     }
 
     emit('scanning', null);
@@ -486,30 +553,63 @@ export class FileScannerService {
       return cancelResult();
     }
 
-    try {
-      await flushFiles();
-      const folderRows = aggregateAccumulator.getAggregates();
-      for (let offset = 0; offset < folderRows.length; offset += batchSize) {
-        const folderBatch = folderRows.slice(offset, offset + batchSize);
-        await this.dependencies.indexWriter.writeIndex({
-          files: [],
-          folders: folderBatch,
-        });
-      }
-    } catch (error) {
-      return failDatabase(error);
-    }
-
     const completedAtMs = this.dependencies.now();
     if (partialSources.size > 0 || errors.length > 0) {
+      try {
+        if (stagingStarted) {
+          await this.dependencies.indexWriter.discardScanStaging();
+        }
+      } catch (error) {
+        return failDatabase(error);
+      }
       this.dependencies.store
         .getState()
         .markPartial(errors.find((error) => error.recoverable) ?? errors[0]);
+      setLastResult('partial', completedAtMs);
       emit('completed', null);
       return result('partial', completedAtMs);
     }
 
+    try {
+      await flushFiles();
+      const folderRows = aggregateAccumulator.getAggregates();
+      for (let offset = 0; offset < folderRows.length; offset += batchSize) {
+        await this.dependencies.indexWriter.stageIndex({
+          files: [],
+          folders: folderRows.slice(offset, offset + batchSize),
+        });
+      }
+      const committed = await this.dependencies.indexWriter.commitScanStaging();
+      indexedCount = committed.filesStaged;
+    } catch (error) {
+      if (stagingStarted) {
+        try {
+          await this.dependencies.indexWriter.discardScanStaging();
+        } catch (discardError) {
+          errors.push(
+            createError(
+              'INDEXING_FAILED',
+              discardError instanceof Error
+                ? discardError.message
+                : 'Unable to discard staging data.',
+              'indexing',
+              false,
+            ),
+          );
+        }
+      }
+      return failDatabase(error);
+    }
+
+    this.dependencies.store.getState().updateProgress({
+      indexedCount,
+      processedCount: discoveredCount,
+      discoveredCount,
+      categoryCounts: counts,
+    });
+    this.dependencies.store.getState().setIndexedMediaBytes?.(indexedMediaBytes);
     this.dependencies.store.getState().completeScan(completedAtMs);
+    setLastResult('completed', completedAtMs);
     emit('completed', null);
     return result('completed', completedAtMs);
   }
