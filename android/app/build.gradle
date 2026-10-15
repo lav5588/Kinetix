@@ -90,6 +90,10 @@ android {
         versionCode 1
         versionName "1.0"
     }
+    packagingOptions {
+        pickFirst 'lib/**/libc++_shared.so'
+        pickFirst 'lib/**/libfbjni.so'
+    }
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
