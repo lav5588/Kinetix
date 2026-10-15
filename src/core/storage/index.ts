@@ -10,3 +10,5 @@ export {
   setNumber,
   setString,
 } from './mmkv';
+
+export { executeBatch, executeSql, sqliteClient } from './sqliteClient';
