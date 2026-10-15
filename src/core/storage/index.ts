@@ -12,6 +12,7 @@ export {
 } from './mmkv';
 
 export { executeBatch, executeSql, sqliteClient } from './sqliteClient';
+export { initializeDatabaseSchema } from './schemaMigrations';
 export type {
   FolderIndexRow,
   MediaCategory,
