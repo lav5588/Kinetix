@@ -1,4 +1,5 @@
 export { CATEGORY_ACCENT_COLORS, THEME_PALETTES } from './palettes';
+export { AppThemeProvider, useAppTheme } from './AppThemeProvider';
 export { resolveAppTheme } from './resolveTheme';
 export { useThemeStore } from './useThemeStore';
 export type { AppMD3Theme, ResolveAppThemeParams } from './resolveTheme';
