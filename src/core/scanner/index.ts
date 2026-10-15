@@ -1,1 +1,1 @@
-export {};
+export { classifyFile, normalizeExtension } from './extensionClassifier';
