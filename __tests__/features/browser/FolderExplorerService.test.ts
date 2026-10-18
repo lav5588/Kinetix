@@ -1,6 +1,10 @@
 import { mediaRepository, MediaRepository } from '@core/storage/mediaRepository';
-import type { FolderIndexRow, MediaCategory } from '@core/storage/types';
-import { FolderExplorerService } from '@features/browser/services/FolderExplorerService';
+import { resumeManager, ResumeManager } from '@core/storage/resumeManager';
+import type { FolderIndexRow, MediaCategory, ResumeRecord } from '@core/storage/types';
+import {
+  FolderExplorerService,
+  extractParentFolderPath,
+} from '@features/browser/services/FolderExplorerService';
 
 describe('FolderExplorerService and Folder Query', () => {
   beforeEach(() => {
@@ -254,6 +258,256 @@ describe('FolderExplorerService and Folder Query', () => {
       });
 
       expect(vm.isExcluded).toBe(true);
+    });
+  });
+
+  describe('Subtask 6: Resolve Unfinished Resume Progress for Folders', () => {
+    describe('ResumeManager.isUnfinished', () => {
+      it('returns true when positionMs is between 0 and 97% of duration', () => {
+        const record: ResumeRecord = {
+          filePath: '/storage/video/movie.mp4',
+          fileName: 'movie.mp4',
+          category: 'video',
+          lastOpenedAt: Date.now(),
+          positionMs: 50000,
+          durationMs: 100000,
+        };
+        expect(ResumeManager.isUnfinished(record)).toBe(true);
+      });
+
+      it('returns false when isCompleted is true', () => {
+        const record: ResumeRecord = {
+          filePath: '/storage/video/movie.mp4',
+          fileName: 'movie.mp4',
+          category: 'video',
+          lastOpenedAt: Date.now(),
+          positionMs: 50000,
+          durationMs: 100000,
+          isCompleted: true,
+        };
+        expect(ResumeManager.isUnfinished(record)).toBe(false);
+      });
+
+      it('returns false when progress ratio is at or above 97%', () => {
+        const record: ResumeRecord = {
+          filePath: '/storage/video/movie.mp4',
+          fileName: 'movie.mp4',
+          category: 'video',
+          lastOpenedAt: Date.now(),
+          positionMs: 97500,
+          durationMs: 100000,
+        };
+        expect(ResumeManager.isUnfinished(record)).toBe(false);
+      });
+
+      it('returns false when positionMs is zero or not set', () => {
+        const zeroProgress: ResumeRecord = {
+          filePath: '/storage/audio/song.mp3',
+          fileName: 'song.mp3',
+          category: 'audio',
+          lastOpenedAt: Date.now(),
+          positionMs: 0,
+          durationMs: 200000,
+        };
+        expect(ResumeManager.isUnfinished(zeroProgress)).toBe(false);
+
+        const noProgress: ResumeRecord = {
+          filePath: '/storage/audio/song.mp3',
+          fileName: 'song.mp3',
+          category: 'audio',
+          lastOpenedAt: Date.now(),
+        };
+        expect(ResumeManager.isUnfinished(noProgress)).toBe(false);
+      });
+
+      it('evaluates PDF reading progress accurately', () => {
+        const inProgressPdf: ResumeRecord = {
+          filePath: '/storage/docs/book.pdf',
+          fileName: 'book.pdf',
+          category: 'pdf',
+          lastOpenedAt: Date.now(),
+          pdfPage: 12,
+          pdfTotalPages: 100,
+        };
+        expect(ResumeManager.isUnfinished(inProgressPdf)).toBe(true);
+
+        const firstPagePdf: ResumeRecord = {
+          filePath: '/storage/docs/book.pdf',
+          fileName: 'book.pdf',
+          category: 'pdf',
+          lastOpenedAt: Date.now(),
+          pdfPage: 1,
+          pdfTotalPages: 100,
+        };
+        expect(ResumeManager.isUnfinished(firstPagePdf)).toBe(false);
+
+        const finishedPdf: ResumeRecord = {
+          filePath: '/storage/docs/book.pdf',
+          fileName: 'book.pdf',
+          category: 'pdf',
+          lastOpenedAt: Date.now(),
+          pdfPage: 100,
+          pdfTotalPages: 100,
+        };
+        expect(ResumeManager.isUnfinished(finishedPdf)).toBe(false);
+      });
+    });
+
+    describe('extractParentFolderPath', () => {
+      it('correctly extracts parent folder from Unix and Windows style paths', () => {
+        expect(extractParentFolderPath('/storage/emulated/0/Music/song.mp3')).toBe(
+          '/storage/emulated/0/Music',
+        );
+        expect(extractParentFolderPath('C:\\Users\\test\\Videos\\clip.mp4')).toBe(
+          'C:/Users/test/Videos',
+        );
+        expect(extractParentFolderPath('topfile.mp4')).toBe('');
+      });
+    });
+
+    describe('FolderExplorerService.getFolders with resume indicators', () => {
+      const mockFolders: FolderIndexRow[] = [
+        {
+          folder_path: '/storage/emulated/0/Music/Rock',
+          folder_name: 'Rock',
+          category: 'AUDIO',
+          item_count: 10,
+          total_size_bytes: 50000,
+          thumbnail_uri: null,
+          last_modified: 1000,
+          is_excluded: 0,
+        },
+        {
+          folder_path: '/storage/emulated/0/Music/Pop',
+          folder_name: 'Pop',
+          category: 'AUDIO',
+          item_count: 15,
+          total_size_bytes: 75000,
+          thumbnail_uri: null,
+          last_modified: 2000,
+          is_excluded: 0,
+        },
+      ];
+
+      it('marks folders with at least one resumable file as hasUnfinishedResume = true', async () => {
+        const mockResumeManager = {
+          ...ResumeManager,
+          getUnfinishedRecords: jest.fn(() => [
+            {
+              filePath: '/storage/emulated/0/Music/Rock/track1.mp3',
+              fileName: 'track1.mp3',
+              category: 'audio' as const,
+              lastOpenedAt: Date.now(),
+              positionMs: 60000,
+              durationMs: 180000,
+            },
+          ]),
+          isUnfinished: ResumeManager.isUnfinished,
+        };
+
+        const mockRepo = {
+          getFoldersByCategory: jest.fn(async () => mockFolders),
+        } as unknown as MediaRepository;
+
+        const service = new FolderExplorerService({
+          mediaRepository: mockRepo,
+          resumeManager: mockResumeManager as unknown as typeof ResumeManager,
+        });
+
+        const result = await service.getFolders('AUDIO');
+
+        expect(result).toHaveLength(2);
+        // Rock folder contains track1.mp3 with unfinished progress
+        expect(result.find((f) => f.folderName === 'Rock')?.hasUnfinishedResume).toBe(true);
+        // Pop folder has no unfinished progress
+        expect(result.find((f) => f.folderName === 'Pop')?.hasUnfinishedResume).toBe(false);
+      });
+
+      it('leaves all folders hasUnfinishedResume = false when resume history is empty', async () => {
+        const mockResumeManager = {
+          ...ResumeManager,
+          getUnfinishedRecords: jest.fn(() => []),
+          isUnfinished: ResumeManager.isUnfinished,
+        };
+
+        const mockRepo = {
+          getFoldersByCategory: jest.fn(async () => mockFolders),
+        } as unknown as MediaRepository;
+
+        const service = new FolderExplorerService({
+          mediaRepository: mockRepo,
+          resumeManager: mockResumeManager as unknown as typeof ResumeManager,
+        });
+
+        const result = await service.getFolders('AUDIO');
+
+        expect(result.every((f) => f.hasUnfinishedResume === false)).toBe(true);
+      });
+
+      it('leaves all folders hasUnfinishedResume = false when records are only completed or zero-progress', async () => {
+        const mockResumeManager = {
+          ...ResumeManager,
+          getUnfinishedRecords: jest.fn(() => []),
+          isUnfinished: ResumeManager.isUnfinished,
+        };
+
+        const mockRepo = {
+          getFoldersByCategory: jest.fn(async () => mockFolders),
+        } as unknown as MediaRepository;
+
+        const service = new FolderExplorerService({
+          mediaRepository: mockRepo,
+          resumeManager: mockResumeManager as unknown as typeof ResumeManager,
+        });
+
+        const result = await service.getFolders('AUDIO');
+
+        expect(result.every((f) => f.hasUnfinishedResume === false)).toBe(true);
+      });
+
+      it('isolates category progress so AUDIO unfinished items do not mark VIDEO folders', async () => {
+        const mockResumeManager = {
+          ...ResumeManager,
+          getUnfinishedRecords: jest.fn(() => [
+            {
+              filePath: '/storage/emulated/0/Music/Rock/track1.mp3',
+              fileName: 'track1.mp3',
+              category: 'audio' as const,
+              lastOpenedAt: Date.now(),
+              positionMs: 60000,
+              durationMs: 180000,
+            },
+          ]),
+          isUnfinished: ResumeManager.isUnfinished,
+        };
+
+        const mockVideoFolders: FolderIndexRow[] = [
+          {
+            folder_path: '/storage/emulated/0/Music/Rock', // Same path, but VIDEO category
+            folder_name: 'Rock',
+            category: 'VIDEO',
+            item_count: 2,
+            total_size_bytes: 500000,
+            thumbnail_uri: null,
+            last_modified: 1000,
+            is_excluded: 0,
+          },
+        ];
+
+        const mockRepo = {
+          getFoldersByCategory: jest.fn(async () => mockVideoFolders),
+        } as unknown as MediaRepository;
+
+        const service = new FolderExplorerService({
+          mediaRepository: mockRepo,
+          resumeManager: mockResumeManager as unknown as typeof ResumeManager,
+        });
+
+        const result = await service.getFolders('VIDEO');
+
+        expect(result).toHaveLength(1);
+        expect(result[0].hasUnfinishedResume).toBe(false);
+      });
     });
   });
 });

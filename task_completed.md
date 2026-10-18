@@ -19,3 +19,5 @@ Task 7
     Subtask 2
     Subtask 3
     Subtask 4
+    Subtask 5
+    Subtask 6

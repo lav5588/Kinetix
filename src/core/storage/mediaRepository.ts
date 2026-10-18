@@ -227,6 +227,36 @@ export class MediaRepository {
     return result.rows ?? [];
   }
 
+  async getFolderPathsForFiles(category: MediaCategory, filePaths: string[]): Promise<Set<string>> {
+    if (filePaths.length === 0) {
+      return new Set();
+    }
+
+    const CHUNK_SIZE = 500;
+    const folderPaths = new Set<string>();
+
+    for (let i = 0; i < filePaths.length; i += CHUNK_SIZE) {
+      const chunk = filePaths.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => '?').join(', ');
+      const sql = `
+        SELECT DISTINCT folder_path
+        FROM media_files
+        WHERE category = ? AND file_path IN (${placeholders})
+      `;
+      const result = (await executeSql(sql, [category, ...chunk])) as {
+        rows?: Array<{ folder_path: string }>;
+      };
+
+      for (const row of result.rows ?? []) {
+        if (row.folder_path) {
+          folderPaths.add(row.folder_path);
+        }
+      }
+    }
+
+    return folderPaths;
+  }
+
   async searchFilesFts(params: {
     query: string;
     category?: MediaCategory;
