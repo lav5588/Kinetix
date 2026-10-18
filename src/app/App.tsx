@@ -1,23 +1,16 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppNavigator } from '@app/AppNavigator';
 import { AppThemeProvider } from '@core/theme';
-import { PermissionGatekeeperScreen } from '@features/onboarding';
 
 function App(): React.JSX.Element {
-  const [permissionsReady, setPermissionsReady] = useState(false);
-
   return (
     <AppThemeProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
-          {permissionsReady ? (
-            <AppNavigator />
-          ) : (
-            <PermissionGatekeeperScreen onReady={() => setPermissionsReady(true)} />
-          )}
+          <AppNavigator />
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </AppThemeProvider>

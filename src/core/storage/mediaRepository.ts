@@ -275,6 +275,32 @@ export class MediaRepository {
     const result = (await executeSql(sql, queryParams.concat(limit))) as { rows?: MediaFileRow[] };
     return toMediaRows(result.rows ?? []);
   }
+
+  async getCategoryItemCounts(): Promise<Record<MediaCategory, number>> {
+    const counts: Record<MediaCategory, number> = {
+      AUDIO: 0,
+      VIDEO: 0,
+      PHOTO: 0,
+      PDF: 0,
+      OTHER_DOC: 0,
+    };
+
+    try {
+      const result = (await executeSql(
+        `SELECT category, COUNT(*) AS count FROM media_files GROUP BY category;`,
+      )) as { rows?: Array<{ category: MediaCategory; count: number }> };
+
+      for (const row of result.rows ?? []) {
+        if (row.category in counts) {
+          counts[row.category] = Number(row.count) || 0;
+        }
+      }
+    } catch {
+      // Table might not be created yet on first start
+    }
+
+    return counts;
+  }
 }
 
 export const mediaRepository = new MediaRepository();

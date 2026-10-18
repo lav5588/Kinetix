@@ -13,10 +13,16 @@ import { useAppTheme } from '@core/theme';
 
 export interface PermissionGatekeeperScreenProps {
   onReady?: () => void;
+  navigation?: {
+    canGoBack?: () => boolean;
+    goBack?: () => void;
+    navigate?: (screen: string) => void;
+  };
 }
 
 export function PermissionGatekeeperScreen({
   onReady,
+  navigation,
 }: PermissionGatekeeperScreenProps): React.JSX.Element {
   const theme = useAppTheme();
   const [snapshot, setSnapshot] = useState<PermissionSnapshot | null>(null);
@@ -77,8 +83,13 @@ export function PermissionGatekeeperScreen({
     if (isReady && !readyNotifiedRef.current) {
       readyNotifiedRef.current = true;
       onReady?.();
+      if (navigation?.canGoBack?.()) {
+        navigation.goBack?.();
+      } else if (navigation?.navigate) {
+        navigation.navigate('Dashboard');
+      }
     }
-  }, [isReady, onReady]);
+  }, [isReady, navigation, onReady]);
 
   const handleGrantPermission = useCallback(async () => {
     setIsLoading(true);

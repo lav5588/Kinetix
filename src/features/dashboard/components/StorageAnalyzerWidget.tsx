@@ -25,6 +25,14 @@ export function StorageAnalyzerWidget(): React.JSX.Element {
   const usedLabel = storageStats.usedGb ?? '0 GB';
   const freeLabel = storageStats.freeGb ?? '0 GB';
 
+  const zone = hasValidCapacity
+    ? percent >= 85
+      ? { color: '#EF4444', label: 'Critical', bgColor: 'rgba(239, 68, 68, 0.15)' }
+      : percent >= 70
+        ? { color: '#F59E0B', label: 'Moderate', bgColor: 'rgba(245, 158, 11, 0.15)' }
+        : { color: '#10B981', label: 'Optimal', bgColor: 'rgba(16, 185, 129, 0.15)' }
+    : { color: theme.appColors.primary, label: '', bgColor: 'transparent' };
+
   return (
     <View
       style={[
@@ -38,9 +46,17 @@ export function StorageAnalyzerWidget(): React.JSX.Element {
     >
       <View style={styles.headerRow}>
         <Text style={[styles.label, { color: theme.appColors.textPrimary }]}>Storage</Text>
-        <Text style={[styles.meta, { color: theme.appColors.textSecondary }]}>
-          {hasValidCapacity ? `${usedLabel} used` : 'No storage data available'}
-        </Text>
+        <View style={styles.metaContainer}>
+          <Text style={[styles.meta, { color: theme.appColors.textSecondary }]}>
+            {hasValidCapacity ? `${usedLabel} used` : 'No storage data available'}
+          </Text>
+          {hasValidCapacity ? (
+            <View style={[styles.zoneBadge, { backgroundColor: zone.bgColor }]}>
+              <View style={[styles.zoneDot, { backgroundColor: zone.color }]} />
+              <Text style={[styles.zoneText, { color: zone.color }]}>{zone.label}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
 
       <View
@@ -59,7 +75,7 @@ export function StorageAnalyzerWidget(): React.JSX.Element {
               styles.fill,
               {
                 width: `${percent}%`,
-                backgroundColor: theme.appColors.primary,
+                backgroundColor: zone.color,
               },
             ]}
           />
@@ -92,9 +108,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  metaContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   meta: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  zoneBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    gap: 4,
+  },
+  zoneDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  zoneText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   track: {
     height: 10,

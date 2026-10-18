@@ -62,29 +62,34 @@ const schemaStatements = [
     artist,
     album,
     content='media_files',
-    content_rowid='id'
+    content_rowid='rowid'
   );`,
   `CREATE INDEX IF NOT EXISTS idx_media_files_category_folder ON media_files(category, folder_path);`,
   `CREATE INDEX IF NOT EXISTS idx_media_files_date_modified_size ON media_files(date_modified DESC, size_bytes DESC);`,
   `CREATE TRIGGER IF NOT EXISTS media_files_fts_ai AFTER INSERT ON media_files BEGIN
     INSERT INTO media_files_fts(rowid, id, file_name, folder_name, artist, album)
-    VALUES (new.id, new.id, new.file_name, new.folder_name, new.artist, new.album);
+    VALUES (new.rowid, new.id, new.file_name, new.folder_name, new.artist, new.album);
   END;`,
   `CREATE TRIGGER IF NOT EXISTS media_files_fts_ad AFTER DELETE ON media_files BEGIN
     INSERT INTO media_files_fts(media_files_fts, rowid, id, file_name, folder_name, artist, album)
-    VALUES('delete', old.id, old.id, old.file_name, old.folder_name, old.artist, old.album);
+    VALUES('delete', old.rowid, old.id, old.file_name, old.folder_name, old.artist, old.album);
   END;`,
   `CREATE TRIGGER IF NOT EXISTS media_files_fts_au AFTER UPDATE ON media_files BEGIN
     INSERT INTO media_files_fts(media_files_fts, rowid, id, file_name, folder_name, artist, album)
-    VALUES('delete', old.id, old.id, old.file_name, old.folder_name, old.artist, old.album);
+    VALUES('delete', old.rowid, old.id, old.file_name, old.folder_name, old.artist, old.album);
     INSERT INTO media_files_fts(rowid, id, file_name, folder_name, artist, album)
-    VALUES (new.id, new.id, new.file_name, new.folder_name, new.artist, new.album);
+    VALUES (new.rowid, new.id, new.file_name, new.folder_name, new.artist, new.album);
   END;`,
 ];
 
 export const initializeDatabaseSchema = async (): Promise<void> => {
   const db = sqliteClient.getDb();
   await db.executeBatch(schemaStatements.map((sql) => [sql] as [string]));
+  try {
+    await db.executeBatch([["INSERT INTO media_files_fts(media_files_fts) VALUES('rebuild')"]]);
+  } catch {
+    // If rebuild is not supported (e.g. mock or empty table), continue safely
+  }
 };
 
 export default initializeDatabaseSchema;

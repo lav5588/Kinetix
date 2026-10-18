@@ -435,6 +435,7 @@ export class ScannerIndexWriter {
       ],
       ['DELETE FROM scanner_staged_files'],
       ['DELETE FROM scanner_staged_folders'],
+      ["INSERT INTO media_files_fts(media_files_fts) VALUES('rebuild')"],
     ]);
 
     return {
@@ -457,15 +458,25 @@ export class ScannerIndexWriter {
     }
 
     try {
-      await this.dependencies.executeBatch([['BEGIN IMMEDIATE'], ...commands, ['COMMIT']]);
+      await this.dependencies.executeBatch(commands);
     } catch (error) {
+      const rootErrorMsg = error instanceof Error ? error.message : String(error);
+      console.error('[ScannerIndexWriter] Transaction error:', rootErrorMsg, error);
       try {
         await this.dependencies.executeSql('ROLLBACK');
       } catch (rollbackError) {
-        throw new AggregateError(
-          [error, rollbackError],
-          'Scanner index transaction failed and rollback could not complete.',
-        );
+        const rollbackMsg =
+          rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
+        if (
+          !rollbackMsg.includes('no transaction is active') &&
+          !rollbackMsg.includes('cannot rollback')
+        ) {
+          console.error('[ScannerIndexWriter] Rollback failed:', rollbackError);
+          throw new AggregateError(
+            [error, rollbackError],
+            `Scanner index transaction failed: ${rootErrorMsg} and rollback could not complete.`,
+          );
+        }
       }
 
       throw error;

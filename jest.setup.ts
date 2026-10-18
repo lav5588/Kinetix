@@ -191,5 +191,6 @@ jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => {
   const React = require('react');
   const { Text } = require('react-native');
 
-  return ({ name }: { name: string }) => React.createElement(Text, null, name);
+  return ({ name, ...props }: { name: string; [key: string]: unknown }) =>
+    React.createElement(Text, props, name);
 });

@@ -128,6 +128,9 @@ class MemorySqlite {
         .length;
       return { rows: [{ count: staleCount }] };
     }
+    if (query === 'ROLLBACK') {
+      return {};
+    }
     throw new Error(`Unexpected SQL query: ${query}`);
   }
 }

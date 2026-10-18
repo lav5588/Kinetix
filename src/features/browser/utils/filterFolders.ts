@@ -1,5 +1,5 @@
 import { folderPrefsStorage } from '@core/storage/mmkv';
-import type { FolderFilterOptions, FolderItemViewModel } from '../types';
+import type { FolderFilterOptions } from '../types';
 
 export const HIDE_MESSENGER_PREF_KEY = 'hide_messenger_folders';
 

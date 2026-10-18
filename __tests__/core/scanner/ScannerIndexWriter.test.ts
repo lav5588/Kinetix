@@ -101,9 +101,7 @@ describe('ScannerIndexWriter', () => {
       staleScopesReconciled: 0,
     });
     expect(batches).toHaveLength(4);
-    expect(batches.map((batch) => batch.length)).toEqual([4, 3, 4, 3]);
-    expect(batches.every((batch) => batch[0][0] === 'BEGIN IMMEDIATE')).toBe(true);
-    expect(batches.every((batch) => batch.at(-1)?.[0] === 'COMMIT')).toBe(true);
+    expect(batches.map((batch) => batch.length)).toEqual([2, 1, 2, 1]);
   });
 
   it('does not execute database writes for empty file and folder input', async () => {
@@ -218,10 +216,8 @@ describe('ScannerIndexWriter', () => {
       'SELECT COUNT(*) AS count FROM scanner_staged_files',
     );
     const commitBatch = batches.at(-1) ?? [];
-    expect(commitBatch[0][0]).toBe('BEGIN IMMEDIATE');
     expect(commitBatch.some(([sql]) => sql.includes('INSERT INTO media_files'))).toBe(true);
     expect(commitBatch.some(([sql]) => sql.includes('DELETE FROM media_files'))).toBe(true);
-    expect(commitBatch.at(-1)?.[0]).toBe('COMMIT');
   });
 
   it('discards staging data without writing to the complete index', async () => {
