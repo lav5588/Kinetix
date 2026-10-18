@@ -26,6 +26,7 @@ export interface AudioPlayerState {
   setProgress: (positionMs: number, durationMs?: number, bufferedMs?: number) => void;
   setRepeatMode: (mode: AudioRepeatMode) => void;
   setShuffled: (isShuffled: boolean, newQueue?: AudioTrack[]) => void;
+  reorderQueue: (newQueue: AudioTrack[], newIndex?: number) => void;
   setPlaybackRate: (rate: number) => void;
   setVolume: (volume: number) => void;
   setIsLoading: (isLoading: boolean) => void;
@@ -126,6 +127,21 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
     }
 
     set({ isShuffled });
+  },
+
+  reorderQueue: (newQueue: AudioTrack[], newIndex?: number) => {
+    const activeTrack = get().activeTrack;
+    const resolvedIndex =
+      typeof newIndex === 'number'
+        ? newIndex
+        : activeTrack
+          ? newQueue.findIndex((item) => item.id === activeTrack.id)
+          : get().currentIndex;
+
+    set({
+      queue: [...newQueue],
+      currentIndex: resolvedIndex,
+    });
   },
 
   setPlaybackRate: (rate: number) => {

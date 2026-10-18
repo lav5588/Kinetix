@@ -7,7 +7,26 @@ import type { AudioRepeatMode, AudioTrack } from '../types';
  */
 export function mapMediaFileToTrack(file: MediaFileRow): AudioTrack {
   const filePath = file.file_path ?? '';
-  const normalizedUrl = filePath.startsWith('file://') ? filePath : `file://${filePath}`;
+  let normalizedUrl = filePath;
+  if (
+    !filePath.startsWith('content://') &&
+    !filePath.startsWith('file://') &&
+    !filePath.startsWith('http://') &&
+    !filePath.startsWith('https://')
+  ) {
+    normalizedUrl = `file://${filePath}`;
+  }
+
+  let artwork: string | undefined = undefined;
+  if (file.file_path && file.file_path.startsWith('content://media/external/audio/media/')) {
+    const id = file.file_path.replace('content://media/external/audio/media/', '');
+    artwork = `content://media/external/audio/media/${id}/albumart`;
+  } else if (
+    file.file_path &&
+    (file.file_path.startsWith('http://') || file.file_path.startsWith('https://'))
+  ) {
+    artwork = file.file_path;
+  }
 
   return {
     id: file.id,
@@ -19,6 +38,7 @@ export function mapMediaFileToTrack(file: MediaFileRow): AudioTrack {
       typeof file.duration_ms === 'number' && file.duration_ms > 0
         ? file.duration_ms / 1000
         : undefined,
+    artwork,
     contentType: file.mime_type || undefined,
     originalFile: file,
   };

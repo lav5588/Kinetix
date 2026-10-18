@@ -56,6 +56,15 @@ describe('audioQueue utilities', () => {
       expect(track.url).toBe('file:///storage/emulated/0/Music/Prefixed.mp3');
     });
 
+    it('preserves existing content:// URI on file_path without double prefixing', () => {
+      const file = {
+        ...createMockFile('file-content-uri', 'Track.mp3'),
+        file_path: 'content://media/external/audio/media/10042',
+      };
+      const track = mapMediaFileToTrack(file);
+      expect(track.url).toBe('content://media/external/audio/media/10042');
+    });
+
     it('handles files with missing duration gracefully', () => {
       const file = {
         ...createMockFile('file-nodur', 'NoDuration.mp3'),

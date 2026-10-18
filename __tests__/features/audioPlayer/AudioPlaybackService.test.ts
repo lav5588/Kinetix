@@ -333,6 +333,15 @@ describe('AudioPlaybackService', () => {
       expect(useAudioPlayerStore.getState().activeTrack?.id).toBe('track-1');
     });
 
+    it('skipToPrevious(true) forces previous track even when position > 3000ms', async () => {
+      await service.skipToIndex(1);
+      useAudioPlayerStore.getState().setProgress(15000, 180000);
+
+      await service.skipToPrevious(true);
+      expect(TrackPlayer.skip).toHaveBeenCalledWith(0);
+      expect(useAudioPlayerStore.getState().activeTrack?.id).toBe('track-1');
+    });
+
     it('skipToPrevious at track 0 with position <= 3000ms seeks to 0 if repeatMode is OFF', async () => {
       useAudioPlayerStore.getState().setProgress(1000, 240000);
 
@@ -364,6 +373,17 @@ describe('AudioPlaybackService', () => {
 
       expect(useAudioPlayerStore.getState().activeTrack?.id).toBe('track-2');
       expect(useAudioPlayerStore.getState().currentIndex).toBe(1);
+    });
+
+    it('PlaybackActiveTrackChanged resolves track from index when track payload is undefined', async () => {
+      await service.loadQueue(mockFiles, 0, false);
+
+      await eventListeners[Event.PlaybackActiveTrackChanged]({
+        index: 2,
+      });
+
+      expect(useAudioPlayerStore.getState().activeTrack?.id).toBe('track-3');
+      expect(useAudioPlayerStore.getState().currentIndex).toBe(2);
     });
 
     it('PlaybackProgressUpdated updates store progress', () => {

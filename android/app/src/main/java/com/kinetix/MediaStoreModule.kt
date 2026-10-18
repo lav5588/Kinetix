@@ -128,6 +128,7 @@ class MediaStoreModule(private val reactContext: ReactApplicationContext) :
           MediaStore.Audio.AudioColumns.DURATION,
           MediaStore.Audio.AudioColumns.ARTIST,
           MediaStore.Audio.AudioColumns.ALBUM,
+          MediaStore.Audio.AudioColumns.ALBUM_ID,
         ),
       )
       "VIDEO" -> columns.addAll(
@@ -206,6 +207,13 @@ class MediaStoreModule(private val reactContext: ReactApplicationContext) :
       "album",
       if (category == "AUDIO") cursor.stringOrNull(MediaStore.Audio.AudioColumns.ALBUM) else null,
     )
+    val albumId = if (category == "AUDIO") cursor.longOrNull(MediaStore.Audio.AudioColumns.ALBUM_ID) else null
+    val artworkUri = if (albumId != null && albumId > 0) {
+      ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId).toString()
+    } else {
+      null
+    }
+    result.putString("artworkUri", artworkUri)
 
     val relativePath =
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

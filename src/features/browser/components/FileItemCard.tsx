@@ -68,12 +68,23 @@ export function FileItemCard({
   // Derive thumbnail URI
   const rawThumbnailUri =
     (file as { thumbnailUri?: string | null }).thumbnailUri ??
-    (category === 'PHOTO' && filePath ? filePath : null);
+    (category === 'PHOTO' && filePath ? filePath : null) ??
+    (category === 'AUDIO' &&
+    filePath &&
+    filePath.startsWith('content://media/external/audio/media/')
+      ? `content://media/external/audio/media/${filePath.replace('content://media/external/audio/media/', '')}/albumart`
+      : null);
 
   const hasValidThumbnail = Boolean(rawThumbnailUri && !imageError);
   const thumbnailSource = rawThumbnailUri
     ? {
-        uri: rawThumbnailUri.startsWith('file://') ? rawThumbnailUri : `file://${rawThumbnailUri}`,
+        uri:
+          rawThumbnailUri.startsWith('file://') ||
+          rawThumbnailUri.startsWith('content://') ||
+          rawThumbnailUri.startsWith('http://') ||
+          rawThumbnailUri.startsWith('https://')
+            ? rawThumbnailUri
+            : `file://${rawThumbnailUri}`,
       }
     : undefined;
 

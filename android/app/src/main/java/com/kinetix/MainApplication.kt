@@ -24,6 +24,7 @@ class MainApplication : Application(), ReactApplication {
               add(MediaStorePackage())
               add(DocumentScannerPackage())
               add(DeviceStorageStatsPackage())
+              add(AudioEqPackage())
             }
 
         override fun getJSMainModuleName(): String = "index"

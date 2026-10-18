@@ -1,0 +1,62 @@
+appId: com.kinetix
+---
+# Launch Kinetix App
+- launchApp:
+    clearState: false
+
+# Handle permission gatekeeper if displayed
+- runFlow:
+    when:
+      visible: "Grant Storage Access"
+    commands:
+      - tapOn: "Grant Storage Access"
+
+# Assert Dashboard is visible
+- assertVisible: "category-dashboard-screen"
+- assertVisible: "Audio"
+
+# 1. Tap Audio card on Dashboard
+- tapOn: "category-card-audio"
+- assertVisible: "folder-explorer-screen"
+
+# 2. Tap an audio folder to open FileListScreen
+- runFlow:
+    when:
+      visible: "folder-explorer-list"
+    commands:
+      - tapOn:
+          point: "50%,20%"
+      - assertVisible: "file-list-screen"
+
+      # 3. Tap a song to trigger playback
+      - tapOn:
+          point: "50%,25%"
+
+      # 4. Verify Persistent Mini-Player appears docked at bottom
+      - assertVisible: "persistent-mini-player"
+      - assertVisible: "mini-player-play-pause-btn"
+      - assertVisible: "mini-player-next-btn"
+
+      # 5. Tap Mini-Player body to expand FullAudioPlayerSheet
+      - tapOn: "mini-player-content-pressable"
+      - assertVisible: "full-audio-player-modal"
+      - assertVisible: "full-player-play-pause-btn"
+      - assertVisible: "ab-loop-container"
+
+      # 6. Open Playback Speed selector
+      - tapOn: "full-player-speed-btn"
+      - assertVisible: "playback-speed-modal"
+      - tapOn: "speed-option-1.5x"
+
+      # 7. Open Equalizer Sheet
+      - tapOn: "full-player-eq-btn"
+      - assertVisible: "audio-equalizer-sheet"
+      - assertVisible: "eq-master-switch"
+      - tapOn: "close-eq-sheet-btn"
+
+      # 8. Collapse Full Audio Player back to docked Mini-Player
+      - tapOn: "full-player-collapse-btn"
+      - assertVisible: "persistent-mini-player"
+
+- back
+- assertVisible: "category-dashboard-screen"

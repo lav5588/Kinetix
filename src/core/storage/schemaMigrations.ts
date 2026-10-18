@@ -55,6 +55,13 @@ const schemaStatements = [
     label TEXT NOT NULL,
     created_at INTEGER NOT NULL
   );`,
+  `CREATE TABLE IF NOT EXISTS media_bookmarks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_path TEXT NOT NULL,
+    timestamp_ms INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );`,
   `CREATE VIRTUAL TABLE IF NOT EXISTS media_files_fts USING fts5(
     id UNINDEXED,
     file_name,

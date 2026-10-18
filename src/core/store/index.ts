@@ -24,3 +24,8 @@ export {
   type AudioPlayerState,
   INITIAL_AUDIO_PLAYER_STATE,
 } from './useAudioPlayerStore';
+export {
+  useAudioControlsStore,
+  type AudioControlsState,
+  type SleepTimerMode,
+} from './useAudioControlsStore';

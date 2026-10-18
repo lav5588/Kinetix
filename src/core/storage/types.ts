@@ -56,6 +56,14 @@ export interface PdfBookmarkRow {
   created_at: number;
 }
 
+export interface MediaBookmarkRow {
+  id: number;
+  file_path: string;
+  timestamp_ms: number;
+  title: string;
+  created_at: number;
+}
+
 export interface ResumeRecord {
   filePath: string;
   fileName: string;

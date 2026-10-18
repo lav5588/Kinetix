@@ -29,6 +29,7 @@ export {
 export { UserDataRepository, userDataRepository } from './userDataRepository';
 export { ResumeManager, resumeManager } from './resumeManager';
 export { ResumeRepository, resumeRepository } from './repositories/ResumeRepository';
+export { BookmarkRepository } from './repositories/BookmarkRepository';
 export {
   useResumeStore,
   useResumeHistoryStore,
@@ -37,6 +38,7 @@ export {
 } from './useResumeStore';
 export type {
   FolderIndexRow,
+  MediaBookmarkRow,
   MediaCategory,
   MediaFileRow,
   PdfBookmarkRow,

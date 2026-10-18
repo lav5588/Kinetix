@@ -330,3 +330,30 @@ jest.mock('react-native-track-player', () => {
   };
 });
 
+const { NativeModules } = require('react-native');
+NativeModules.AudioEqModule = {
+  isAvailable: jest.fn().mockResolvedValue(true),
+  initEqualizer: jest.fn().mockResolvedValue({
+    bandCount: 5,
+    minLevel: -1500,
+    maxLevel: 1500,
+    presets: ['Flat', 'Bass Boost', 'Rock', 'Pop', 'Jazz', 'Classical', 'Electronic', 'Vocal'],
+    bands: [
+      { band: 0, centerFreq: 60000, level: 0 },
+      { band: 1, centerFreq: 230000, level: 0 },
+      { band: 2, centerFreq: 910000, level: 0 },
+      { band: 3, centerFreq: 3600000, level: 0 },
+      { band: 4, centerFreq: 14000000, level: 0 },
+    ],
+    bassBoostSupported: true,
+    virtualizerSupported: true,
+  }),
+  setEnabled: jest.fn().mockResolvedValue(true),
+  setBandLevel: jest.fn().mockResolvedValue(true),
+  setAllBandLevels: jest.fn().mockResolvedValue(true),
+  usePreset: jest.fn().mockResolvedValue(true),
+  setBassBoostStrength: jest.fn((str) => Promise.resolve(str)),
+  setVirtualizerStrength: jest.fn((str) => Promise.resolve(str)),
+  release: jest.fn().mockResolvedValue(true),
+};
+

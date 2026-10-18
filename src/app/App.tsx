@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AppNavigator } from '@app/AppNavigator';
 import { AppThemeProvider } from '@core/theme';
+import { PersistentMiniPlayer, FullAudioPlayerSheet } from '@features/audioPlayer';
 
 function App(): React.JSX.Element {
   return (
@@ -11,6 +12,8 @@ function App(): React.JSX.Element {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <AppNavigator />
+          <PersistentMiniPlayer />
+          <FullAudioPlayerSheet />
         </SafeAreaProvider>
       </GestureHandlerRootView>
     </AppThemeProvider>
