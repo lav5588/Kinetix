@@ -108,9 +108,23 @@ export function FolderExplorerScreen({
       navigation.setOptions({
         title: screenTitle,
         headerRight: renderHeaderRight,
+        headerStyle: {
+          backgroundColor: theme.appColors.surface,
+        },
+        headerTintColor: theme.appColors.textPrimary,
+        headerTitleStyle: {
+          color: theme.appColors.textPrimary,
+          fontWeight: '600',
+        },
       });
     }
-  }, [navigation, renderHeaderRight, screenTitle]);
+  }, [
+    navigation,
+    renderHeaderRight,
+    screenTitle,
+    theme.appColors.surface,
+    theme.appColors.textPrimary,
+  ]);
 
   const loadFolders = useCallback(
     async (targetCategory: MediaCategory, isRefresh = false) => {

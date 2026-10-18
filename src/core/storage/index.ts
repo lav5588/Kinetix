@@ -9,6 +9,7 @@ export {
   setBoolean,
   setNumber,
   setString,
+  sortFilterStorage,
 } from './mmkv';
 
 export { executeBatch, executeSql, sqliteClient } from './sqliteClient';
@@ -18,6 +19,13 @@ export {
   mediaRepository,
   type GetFoldersByCategoryOptions,
 } from './mediaRepository';
+export {
+  FileRepository,
+  fileRepository,
+  sanitizeFts5Query,
+  type GetFilesByFolderParams,
+  type SearchFilesFtsParams,
+} from './repositories/FileRepository';
 export { UserDataRepository, userDataRepository } from './userDataRepository';
 export { ResumeManager, resumeManager } from './resumeManager';
 export {

@@ -156,6 +156,14 @@ jest.mock('react-native-mmkv', () => {
 });
 
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+jest.mock('@gorhom/bottom-sheet', () => {
+  const mock = require('@gorhom/bottom-sheet/mock');
+  return {
+    __esModule: true,
+    ...mock,
+    default: mock.default,
+  };
+});
 
 jest.mock('react-native-safe-area-context', () => {
   const React = require('react');

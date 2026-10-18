@@ -74,19 +74,21 @@ export function CategoryDashboardScreen({
   const isRefreshingRef = useRef(false);
 
   useEffect(() => {
+    if (!initDatabaseOnMount) {
+      return;
+    }
+
     let isMounted = true;
 
     const bootstrap = async () => {
-      if (initDatabaseOnMount) {
-        try {
-          await initializeDatabaseSchema();
-          if (isMounted) {
-            setStorageReady(true);
-          }
-        } catch {
-          if (isMounted) {
-            setStorageReady(false);
-          }
+      try {
+        await initializeDatabaseSchema();
+        if (isMounted) {
+          setStorageReady(true);
+        }
+      } catch {
+        if (isMounted) {
+          setStorageReady(false);
         }
       }
 

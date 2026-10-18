@@ -72,3 +72,54 @@ export function getCategoryColor(category: MediaCategory): string {
       return '#8B5CF6';
   }
 }
+
+export function formatDuration(ms?: number | null): string {
+  if (ms == null || !Number.isFinite(ms) || ms <= 0) {
+    return '0:00';
+  }
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const paddedSeconds = seconds < 10 ? `0${seconds}` : `${seconds}`;
+
+  if (hours > 0) {
+    const paddedMinutes = minutes < 10 ? `0${minutes}` : `${minutes}`;
+    return `${hours}:${paddedMinutes}:${paddedSeconds}`;
+  }
+  return `${minutes}:${paddedSeconds}`;
+}
+
+export function getFileFallbackIcon(category: MediaCategory): string {
+  switch (category) {
+    case 'AUDIO':
+      return 'music-note';
+    case 'VIDEO':
+      return 'play-box-outline';
+    case 'PHOTO':
+      return 'image';
+    case 'PDF':
+      return 'file-pdf-box';
+    case 'OTHER_DOC':
+      return 'file-document-outline';
+    default:
+      return 'file-outline';
+  }
+}
+
+/**
+ * Formats the search placeholder with a fixed max character length.
+ * Appends '...' (ellipsis) if the folder name exceeds the fixed length threshold.
+ */
+export function formatSearchPlaceholder(folderName?: string, maxFolderLen = 14): string {
+  const name = folderName?.trim() || '';
+  if (!name || name.toLowerCase() === 'files') {
+    return 'Search files...';
+  }
+
+  if (name.length > maxFolderLen) {
+    return `Search in ${name.slice(0, maxFolderLen).trim()}...`;
+  }
+
+  return `Search in ${name}...`;
+}

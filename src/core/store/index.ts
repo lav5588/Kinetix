@@ -12,3 +12,10 @@ export {
   type ResumeStoreState,
   type ResumeCategory,
 } from '../storage/useResumeStore';
+export {
+  useBrowserFilterStore,
+  type BrowserFilterStore,
+  type CategoryFilterPreference,
+  type BrowserViewMode,
+  DEFAULT_CATEGORY_PREFERENCES,
+} from './useBrowserFilterStore';
