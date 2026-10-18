@@ -4,6 +4,7 @@ import type { StateStorage } from 'zustand/middleware';
 export const appSettingsStorage = new MMKV({ id: 'omniplay-settings-store' });
 export const resumeStorage = new MMKV({ id: 'omniplay-resume-store' });
 export const folderPrefsStorage = new MMKV({ id: 'omniplay-folder-prefs-store' });
+export const sortFilterStorage = new MMKV({ id: 'mmkv-sort-filter-state' });
 
 export const getString = (storage: MMKV, key: string): string | undefined => storage.getString(key);
 

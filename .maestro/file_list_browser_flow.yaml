@@ -1,0 +1,79 @@
+appId: com.kinetix
+---
+# Launch the Kinetix App
+- launchApp:
+    clearState: false
+
+# Handle permission gatekeeper if displayed on initial opening
+- runFlow:
+    when:
+      visible: "Grant Storage Access"
+    commands:
+      - tapOn: "Grant Storage Access"
+
+# Assert on Category Dashboard Screen
+- assertVisible: "category-dashboard-screen"
+- assertVisible: "Kinetix"
+- assertVisible: "Audio"
+
+# 1. Tap Audio card on Dashboard
+- tapOn: "category-card-audio"
+- assertVisible: "folder-explorer-screen"
+- assertVisible: "Category: AUDIO"
+
+# 2. Tap a folder to navigate to FileListScreen
+- runFlow:
+    when:
+      visible: "folder-explorer-list"
+    commands:
+      - tapOn:
+          point: "50%,20%"
+      - assertVisible: "file-list-screen"
+      - assertVisible: "smart-search-header"
+
+      # 3. Enter a search query and verify clear button
+      - tapOn: "smart-search-input"
+      - inputText: "mp3"
+      - assertVisible: "search-clear-button"
+      - tapOn: "search-clear-button"
+
+      # 4. Apply In Progress and Large Files > 100MB filters
+      - tapOn: "filter-chip-in_progress"
+      - tapOn: "filter-chip-large_files"
+      - tapOn: "filter-chip-all"
+
+      # 5. Switch List / Grid View Mode
+      - tapOn: "view-mode-toggle"
+      - tapOn: "view-mode-toggle"
+
+      # 6. Open Sort Bottom Sheet and choose a sort order
+      - tapOn: "sort-button"
+      - assertVisible: "sort-bottom-sheet"
+      - assertVisible: "Sort Files"
+      - tapOn: "sort-option-name_desc"
+
+      # 7. Restart the app (without clearing state) and verify persisted sort preference
+      - launchApp:
+          clearState: false
+
+      - assertVisible: "category-dashboard-screen"
+      - tapOn: "category-card-audio"
+      - assertVisible: "folder-explorer-screen"
+
+      - runFlow:
+          when:
+            visible: "folder-explorer-list"
+          commands:
+            - tapOn:
+                point: "50%,20%"
+            - assertVisible: "file-list-screen"
+            - tapOn: "sort-button"
+            - assertVisible: "sort-bottom-sheet"
+            - assertVisible: "sort-option-name_desc"
+            - back
+            - back
+            - assertVisible: "folder-explorer-screen"
+
+# 8. Navigate back to Dashboard
+- back
+- assertVisible: "category-dashboard-screen"

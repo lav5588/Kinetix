@@ -1,4 +1,5 @@
 import { executeBatch, executeSql } from './sqliteClient';
+import { sanitizeFts5Query } from './repositories/FileRepository';
 import type { FolderIndexRow, MediaCategory, MediaFileRow } from './types';
 
 export type SortField = 'name' | 'date' | 'size' | 'duration';
@@ -263,18 +264,7 @@ export class MediaRepository {
     folderPath?: string;
     limit?: number;
   }): Promise<MediaFileRow[]> {
-    const queryText = params.query.trim();
-    if (!queryText) {
-      return [];
-    }
-
-    const escapedTerms = queryText
-      .replace(/"/g, '')
-      .replace(/'/g, '')
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((term) => `"${term.replace(/[*?]/g, '')}"*`)
-      .join(' ');
+    const escapedTerms = sanitizeFts5Query(params.query);
 
     if (!escapedTerms) {
       return [];
