@@ -81,6 +81,62 @@ export const ResumeManager = {
       }
     }
   },
+
+  isUnfinished(record?: ResumeRecord | null): boolean {
+    if (!record || record.isCompleted) {
+      return false;
+    }
+
+    if (
+      typeof record.positionMs === 'number' &&
+      typeof record.durationMs === 'number' &&
+      record.durationMs > 0
+    ) {
+      const progressRatio = record.positionMs / record.durationMs;
+      return record.positionMs > 0 && progressRatio < 0.97;
+    }
+
+    if (typeof record.positionMs === 'number' && record.positionMs > 0) {
+      return true;
+    }
+
+    if (typeof record.pdfPage === 'number' && record.pdfPage > 1) {
+      if (typeof record.pdfTotalPages === 'number' && record.pdfTotalPages > 0) {
+        return record.pdfPage < record.pdfTotalPages;
+      }
+      return true;
+    }
+
+    return false;
+  },
+
+  getAllResumeRecords(category?: ResumeCategory): ResumeRecord[] {
+    const keys = resumeStorage.getAllKeys().filter((key) => key.startsWith('resume:'));
+    const records: ResumeRecord[] = [];
+
+    for (const key of keys) {
+      const raw = resumeStorage.getString(key);
+      if (!raw) {
+        continue;
+      }
+
+      try {
+        const record = JSON.parse(raw) as ResumeRecord;
+        if (category && record.category !== category) {
+          continue;
+        }
+        records.push(record);
+      } catch {
+        // ignore malformed resume entries during history scans
+      }
+    }
+
+    return records;
+  },
+
+  getUnfinishedRecords(category?: ResumeCategory): ResumeRecord[] {
+    return this.getAllResumeRecords(category).filter((record) => this.isUnfinished(record));
+  },
 };
 
 export const resumeManager = ResumeManager;

@@ -1,4 +1,5 @@
 import 'react-native-gesture-handler/jestSetup';
+import '@shopify/flash-list/jestSetup';
 
 type SqlValue = string | number | boolean | null;
 type SqlParams = SqlValue[];
@@ -183,6 +184,8 @@ jest.mock('react-native-safe-area-context', () => {
       insets,
     },
     useSafeAreaInsets: () => insets,
+    SafeAreaView: ({ children, style, ...props }: { children?: React.ReactNode; style?: unknown; [key: string]: unknown }) =>
+      React.createElement(View, { style, ...props }, children),
   };
 });
 
@@ -190,5 +193,6 @@ jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => {
   const React = require('react');
   const { Text } = require('react-native');
 
-  return ({ name }: { name: string }) => React.createElement(Text, null, name);
+  return ({ name, ...props }: { name: string; [key: string]: unknown }) =>
+    React.createElement(Text, props, name);
 });

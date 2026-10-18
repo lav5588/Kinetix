@@ -3,7 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { CategoryDashboardScreen } from '@features/dashboard';
-import { FolderExplorerScreen } from '@features/browser';
+import { FolderExplorerScreen, FileListScreen, getCategoryTitle } from '@features/browser';
 import { PermissionGatekeeperScreen } from '@features/onboarding';
 import type { RootStackParamList } from './navigationTypes';
 
@@ -24,7 +24,14 @@ export function AppNavigator(): React.JSX.Element {
           name="FolderExplorer"
           component={FolderExplorerScreen}
           options={({ route }) => ({
-            title: `${route.params.category.toLowerCase()} folder`,
+            title: getCategoryTitle(route.params.category),
+          })}
+        />
+        <Stack.Screen
+          name="FileListScreen"
+          component={FileListScreen}
+          options={({ route }) => ({
+            title: route.params.folderName || 'Files',
           })}
         />
         <Stack.Screen

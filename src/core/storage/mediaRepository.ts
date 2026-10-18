@@ -4,6 +4,13 @@ import type { FolderIndexRow, MediaCategory, MediaFileRow } from './types';
 export type SortField = 'name' | 'date' | 'size' | 'duration';
 export type SortOrder = 'ASC' | 'DESC';
 
+export interface GetFoldersByCategoryOptions {
+  hideMessenger?: boolean;
+  excludeHidden?: boolean;
+  sortBy?: 'name' | 'date' | 'size' | 'count';
+  sortOrder?: 'ASC' | 'DESC';
+}
+
 const sortFieldMap: Record<SortField, string> = {
   name: 'file_name COLLATE NOCASE',
   date: 'date_modified',
@@ -142,21 +149,42 @@ export class MediaRepository {
 
   async getFoldersByCategory(
     category: MediaCategory,
-    hideMessenger = false,
+    optionsOrHideMessenger: boolean | GetFoldersByCategoryOptions = false,
   ): Promise<FolderIndexRow[]> {
+    const options: GetFoldersByCategoryOptions =
+      typeof optionsOrHideMessenger === 'boolean'
+        ? { hideMessenger: optionsOrHideMessenger }
+        : optionsOrHideMessenger;
+
     const whereClauses = ['category = ?'];
     const params: Array<string | number> = [category];
 
-    if (hideMessenger) {
-      whereClauses.push(`folder_path NOT LIKE ? AND folder_path NOT LIKE ?`);
+    if (options.excludeHidden) {
+      whereClauses.push('is_excluded = ?');
+      params.push(0);
+    }
+
+    if (options.hideMessenger) {
+      whereClauses.push('folder_path NOT LIKE ? AND folder_path NOT LIKE ?');
       params.push('%WhatsApp%', '%Telegram%');
     }
+
+    let orderColumn = 'folder_name COLLATE NOCASE';
+    if (options.sortBy === 'date') {
+      orderColumn = 'last_modified';
+    } else if (options.sortBy === 'size') {
+      orderColumn = 'total_size_bytes';
+    } else if (options.sortBy === 'count') {
+      orderColumn = 'item_count';
+    }
+
+    const direction = options.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     const sql = `
       SELECT folder_path, folder_name, category, item_count, total_size_bytes, thumbnail_uri, last_modified, is_excluded
       FROM folders_index
       WHERE ${whereClauses.join(' AND ')}
-      ORDER BY folder_name ASC, last_modified DESC
+      ORDER BY ${orderColumn} ${direction}, folder_name COLLATE NOCASE ASC
     `;
 
     const result = (await executeSql(sql, params)) as { rows?: FolderIndexRow[] };
@@ -197,6 +225,36 @@ export class MediaRepository {
 
     const result = (await executeSql(sql, queryParams)) as { rows?: MediaFileRow[] };
     return result.rows ?? [];
+  }
+
+  async getFolderPathsForFiles(category: MediaCategory, filePaths: string[]): Promise<Set<string>> {
+    if (filePaths.length === 0) {
+      return new Set();
+    }
+
+    const CHUNK_SIZE = 500;
+    const folderPaths = new Set<string>();
+
+    for (let i = 0; i < filePaths.length; i += CHUNK_SIZE) {
+      const chunk = filePaths.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => '?').join(', ');
+      const sql = `
+        SELECT DISTINCT folder_path
+        FROM media_files
+        WHERE category = ? AND file_path IN (${placeholders})
+      `;
+      const result = (await executeSql(sql, [category, ...chunk])) as {
+        rows?: Array<{ folder_path: string }>;
+      };
+
+      for (const row of result.rows ?? []) {
+        if (row.folder_path) {
+          folderPaths.add(row.folder_path);
+        }
+      }
+    }
+
+    return folderPaths;
   }
 
   async searchFilesFts(params: {
@@ -246,6 +304,32 @@ export class MediaRepository {
 
     const result = (await executeSql(sql, queryParams.concat(limit))) as { rows?: MediaFileRow[] };
     return toMediaRows(result.rows ?? []);
+  }
+
+  async getCategoryItemCounts(): Promise<Record<MediaCategory, number>> {
+    const counts: Record<MediaCategory, number> = {
+      AUDIO: 0,
+      VIDEO: 0,
+      PHOTO: 0,
+      PDF: 0,
+      OTHER_DOC: 0,
+    };
+
+    try {
+      const result = (await executeSql(
+        `SELECT category, COUNT(*) AS count FROM media_files GROUP BY category;`,
+      )) as { rows?: Array<{ category: MediaCategory; count: number }> };
+
+      for (const row of result.rows ?? []) {
+        if (row.category in counts) {
+          counts[row.category] = Number(row.count) || 0;
+        }
+      }
+    } catch {
+      // Table might not be created yet on first start
+    }
+
+    return counts;
   }
 }
 

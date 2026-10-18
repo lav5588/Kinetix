@@ -14,3 +14,14 @@ Task 6
     Subtask 8
     Subtask 9
     Subtask 10
+Task 7
+    Subtask 1
+    Subtask 2
+    Subtask 3
+    Subtask 4
+    Subtask 5
+    Subtask 6
+    Subtask 7
+    Subtask 8
+    Subtask 9
+    Subtask 10

@@ -4,7 +4,8 @@ import { ProgressBar } from 'react-native-paper';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { fileScannerService, type FileScannerResult } from '@core/scanner';
-import { initializeDatabaseSchema, type ResumeRecord } from '@core/storage';
+import { initializeDatabaseSchema, mediaRepository, type ResumeRecord } from '@core/storage';
+import { permissionManager } from '@core/permissions';
 import { useMediaScannerStore } from '@core/store';
 import { CATEGORY_ACCENT_COLORS, useAppTheme } from '@core/theme';
 
@@ -73,25 +74,60 @@ export function CategoryDashboardScreen({
   const isRefreshingRef = useRef(false);
 
   useEffect(() => {
-    if (!initDatabaseOnMount) {
-      return;
-    }
     let isMounted = true;
-    initializeDatabaseSchema()
-      .then(() => {
-        if (isMounted) {
-          setStorageReady(true);
+
+    const bootstrap = async () => {
+      if (initDatabaseOnMount) {
+        try {
+          await initializeDatabaseSchema();
+          if (isMounted) {
+            setStorageReady(true);
+          }
+        } catch {
+          if (isMounted) {
+            setStorageReady(false);
+          }
         }
-      })
-      .catch(() => {
+      }
+
+      // Load existing category counts from SQLite so they appear immediately on app restart
+      try {
+        const counts = await mediaRepository.getCategoryItemCounts();
         if (isMounted) {
-          setStorageReady(false);
+          useMediaScannerStore.getState().setCategoryCounts(counts);
         }
-      });
+      } catch {
+        // Table may not have records yet
+      }
+
+      // Refresh device storage statistics (used/free/total bytes)
+      try {
+        await fileScannerService.refreshStorageStats();
+      } catch {
+        // Ignore storage stats error
+      }
+
+      // Check permissions in the background. If NOT granted, navigate to PermissionGatekeeper.
+      try {
+        const snapshot = await permissionManager.getPermissionSnapshot();
+        if (isMounted) {
+          useMediaScannerStore.getState().setPermissionSnapshot(snapshot, Date.now());
+          if (!snapshot.mediaPermissionsReady) {
+            onRequirePermission?.();
+            navigation?.navigate('PermissionGatekeeper');
+          }
+        }
+      } catch {
+        // Ignore permission snapshot error
+      }
+    };
+
+    void bootstrap();
+
     return () => {
       isMounted = false;
     };
-  }, [initDatabaseOnMount]);
+  }, [initDatabaseOnMount, navigation, onRequirePermission]);
 
   const isScanning =
     status === 'scanning' || status === 'indexing' || status === 'checkingPermissions';
@@ -120,7 +156,15 @@ export function CategoryDashboardScreen({
 
     try {
       const result = await scannerService.startScan();
-      if (result.status === 'permission_required') {
+      try {
+        await fileScannerService.refreshStorageStats();
+      } catch {
+        // Ignore storage stats refresh error
+      }
+      if (result.status === 'completed') {
+        const counts = await mediaRepository.getCategoryItemCounts();
+        useMediaScannerStore.getState().setCategoryCounts(counts);
+      } else if (result.status === 'permission_required') {
         onRequirePermission?.();
         navigation?.navigate('PermissionGatekeeper');
       } else if (result.status === 'failed' || result.status === 'cancelled') {
@@ -129,6 +173,7 @@ export function CategoryDashboardScreen({
         }
       }
     } catch (error) {
+      console.error('[Dashboard] scan error:', error);
       const message = error instanceof Error ? error.message : 'Scan failed';
       setLocalErrorMessage(message);
     } finally {

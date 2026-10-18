@@ -1,0 +1,56 @@
+appId: com.kinetix
+---
+# Launch the Kinetix App
+- launchApp:
+    clearState: false
+
+# Handle permission gatekeeper if displayed on initial opening
+- runFlow:
+    when:
+      visible: "Grant Storage Access"
+    commands:
+      - tapOn: "Grant Storage Access"
+
+# Assert on Category Dashboard Screen
+- assertVisible: "Kinetix"
+- assertVisible: "Audio"
+
+# 1. Tap Audio card and verify navigation to Folder Explorer with Audio category
+- tapOn: "category-card-audio"
+- assertVisible: "folder-explorer-screen"
+- assertVisible: "Audio Folders"
+- assertVisible: "Category: AUDIO"
+
+# 2. Test overflow menu: switch to Grid View and back to List View
+- tapOn: "folder-explorer-menu-button"
+- assertVisible: "Switch to Grid View"
+- tapOn: "toggle-view-mode-menu-item"
+
+- tapOn: "folder-explorer-menu-button"
+- assertVisible: "Switch to List View"
+- tapOn: "toggle-view-mode-menu-item"
+
+# 3. Test overflow menu: toggle Hide WhatsApp/Telegram Folders
+- tapOn: "folder-explorer-menu-button"
+- assertVisible: "hide-messenger-toggle-chip"
+- tapOn: "hide-messenger-toggle-chip"
+
+# 4. Tap a folder if present and verify FileListScreen route receives expected params
+- runFlow:
+    when:
+      visible: "folder-explorer-list"
+    commands:
+      - tapOn:
+          point: "50%,20%"
+      - runFlow:
+          when:
+            visible: "file-list-screen-placeholder"
+          commands:
+            - assertVisible: "file-list-folder-id"
+            - assertVisible: "file-list-category"
+            - back
+            - assertVisible: "folder-explorer-screen"
+
+# 5. Navigate back to Dashboard
+- back
+- assertVisible: "category-dashboard-screen"
