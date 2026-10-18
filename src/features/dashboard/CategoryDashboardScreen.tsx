@@ -1,89 +1,246 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ProgressBar } from 'react-native-paper';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
+import { fileScannerService, type FileScannerResult } from '@core/scanner';
+import type { ResumeRecord } from '@core/storage';
 import { useMediaScannerStore } from '@core/store';
-import { useAppTheme } from '@core/theme';
-import { CATEGORY_ACCENT_COLORS } from '@core/theme';
+import { CATEGORY_ACCENT_COLORS, useAppTheme } from '@core/theme';
 
 import { CategoryBentoCard } from './components/CategoryBentoCard';
 import { ContinueWatchingCarousel } from './components/ContinueWatchingCarousel';
 import { StorageAnalyzerWidget } from './components/StorageAnalyzerWidget';
 
+export type CategoryKey = 'audio' | 'video' | 'photo' | 'pdf' | 'doc';
+export type MediaDomainCategory = 'AUDIO' | 'VIDEO' | 'PHOTO' | 'PDF' | 'OTHER_DOC';
+
 export interface CategoryDashboardScreenProps {
   navigation?: {
     navigate: (screen: string, params?: Record<string, unknown>) => void;
   };
-  onSelectCategory?: (category: CategoryKey) => void;
+  onSelectCategory?: (category: MediaDomainCategory | CategoryKey) => void;
+  onRequirePermission?: () => void;
+  onContinueItemPress?: (item: ResumeRecord) => void;
+  scannerService?: {
+    startScan: () => Promise<FileScannerResult>;
+  };
 }
 
-export type CategoryKey = 'audio' | 'video' | 'photo' | 'pdf' | 'doc';
-
-const CATEGORY_VALUE_MAP: Record<CategoryKey, 'AUDIO' | 'VIDEO' | 'PHOTO' | 'PDF' | 'OTHER_DOC'> = {
-  audio: 'AUDIO',
-  video: 'VIDEO',
-  photo: 'PHOTO',
-  pdf: 'PDF',
-  doc: 'OTHER_DOC',
-};
-
-const CATEGORY_DEFINITIONS: Array<{
+export interface CategoryDefinition {
   key: CategoryKey;
+  category: MediaDomainCategory;
   title: string;
   icon: string;
-}> = [
-  { key: 'audio', title: 'Audio', icon: 'music-note' },
-  { key: 'video', title: 'Video', icon: 'video' },
-  { key: 'photo', title: 'Photos', icon: 'image-multiple' },
-  { key: 'pdf', title: 'PDF', icon: 'file-pdf-box' },
-  { key: 'doc', title: 'Other Docs', icon: 'file-document-multiple' },
+}
+
+export const CATEGORY_DEFINITIONS: CategoryDefinition[] = [
+  { key: 'audio', category: 'AUDIO', title: 'Audio', icon: 'music-note' },
+  { key: 'video', category: 'VIDEO', title: 'Video', icon: 'video' },
+  { key: 'photo', category: 'PHOTO', title: 'Photos', icon: 'image-multiple' },
+  { key: 'pdf', category: 'PDF', title: 'PDF', icon: 'file-pdf-box' },
+  { key: 'doc', category: 'OTHER_DOC', title: 'Other Docs', icon: 'file-document-multiple' },
 ];
 
 export function CategoryDashboardScreen({
   navigation,
   onSelectCategory,
+  onRequirePermission,
+  onContinueItemPress,
+  scannerService = fileScannerService,
 }: CategoryDashboardScreenProps): React.JSX.Element {
   const theme = useAppTheme();
   const categoryCounts = useMediaScannerStore((state) => state.categoryCounts);
+  const status = useMediaScannerStore((state) => state.status);
+  const phase = useMediaScannerStore((state) => state.phase);
+  const progressPercent = useMediaScannerStore((state) => state.progressPercent);
+  const lastScanStatus = useMediaScannerStore((state) => state.lastScanStatus);
+  const scannerError = useMediaScannerStore((state) => state.error);
 
-  const handleSelectCategory = (key: CategoryKey): void => {
-    onSelectCategory?.(key);
-    navigation?.navigate('FolderExplorer', { category: key });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [localErrorMessage, setLocalErrorMessage] = useState<string | null>(null);
+  const isRefreshingRef = useRef(false);
+
+  const isScanning =
+    status === 'scanning' || status === 'indexing' || status === 'checkingPermissions';
+  const permissionNeeded =
+    lastScanStatus === 'permission_required' ||
+    (status === 'error' && scannerError?.code === 'ACCESS_DENIED');
+
+  const handleSelectCategory = (def: CategoryDefinition): void => {
+    onSelectCategory?.(def.category);
+    navigation?.navigate('FolderExplorer', { category: def.category });
   };
+
+  const handleGrantPermission = (): void => {
+    onRequirePermission?.();
+    navigation?.navigate('PermissionGatekeeper');
+  };
+
+  const handleRefresh = useCallback(async () => {
+    if (isRefreshingRef.current || isScanning) {
+      return;
+    }
+
+    isRefreshingRef.current = true;
+    setIsRefreshing(true);
+    setLocalErrorMessage(null);
+
+    try {
+      const result = await scannerService.startScan();
+      if (result.status === 'permission_required') {
+        onRequirePermission?.();
+        navigation?.navigate('PermissionGatekeeper');
+      } else if (result.status === 'failed' || result.status === 'cancelled') {
+        if (result.errors && result.errors.length > 0) {
+          setLocalErrorMessage(result.errors[0].message);
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Scan failed';
+      setLocalErrorMessage(message);
+    } finally {
+      isRefreshingRef.current = false;
+      setIsRefreshing(false);
+    }
+  }, [isScanning, navigation, onRequirePermission, scannerService]);
+
+  const progressRatio =
+    progressPercent != null && Number.isFinite(progressPercent)
+      ? Math.min(1, Math.max(0, progressPercent / 100))
+      : undefined;
+
+  const activeErrorMessage =
+    localErrorMessage || (status === 'error' ? scannerError?.message : null);
 
   return (
     <ScrollView
       testID="category-dashboard-screen"
       style={{ backgroundColor: theme.appColors.background }}
       contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          colors={[theme.appColors.primary]}
+          tintColor={theme.appColors.primary}
+        />
+      }
     >
       <View style={styles.header}>
         <Text style={[styles.eyebrow, { color: theme.appColors.textSecondary }]}>Home</Text>
         <Text style={[styles.title, { color: theme.appColors.textPrimary }]}>Kinetix</Text>
       </View>
 
+      {/* Non-blocking scanner progress indicator */}
+      {isScanning ? (
+        <View style={styles.progressContainer} testID="scanner-progress-indicator">
+          <ProgressBar
+            progress={progressRatio}
+            indeterminate={progressRatio == null}
+            color={theme.appColors.primary}
+            style={styles.progressBar}
+          />
+          <Text style={[styles.progressText, { color: theme.appColors.textSecondary }]}>
+            {phase === 'indexing'
+              ? `Indexing media files... ${
+                  progressPercent != null ? `${Math.round(progressPercent)}%` : ''
+                }`
+              : phase === 'discovering' || phase === 'normalizing'
+                ? 'Scanning device for media files...'
+                : 'Checking permissions...'}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* Permission required gatekeeper notice */}
+      {permissionNeeded ? (
+        <View
+          style={[
+            styles.banner,
+            {
+              backgroundColor: `${theme.appColors.error}18`,
+              borderColor: theme.appColors.error,
+            },
+          ]}
+          testID="permission-required-banner"
+        >
+          <View style={styles.bannerContent}>
+            <Text style={[styles.bannerTitle, { color: theme.appColors.error }]}>
+              Storage Permission Needed
+            </Text>
+            <Text style={[styles.bannerMessage, { color: theme.appColors.textSecondary }]}>
+              Required permissions are missing to scan all folders on your device.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Grant storage permission"
+              style={[styles.bannerButton, { backgroundColor: theme.appColors.primary }]}
+              onPress={handleGrantPermission}
+              testID="grant-permission-button"
+            >
+              <Text style={[styles.bannerButtonText, { color: theme.appColors.onPrimary }]}>
+                Grant Permission
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
+      {/* Scan error banner */}
+      {activeErrorMessage && !permissionNeeded ? (
+        <View
+          style={[
+            styles.banner,
+            {
+              backgroundColor: `${theme.appColors.error}15`,
+              borderColor: theme.appColors.error,
+            },
+          ]}
+          testID="scanner-error-banner"
+        >
+          <Text style={[styles.bannerTitle, { color: theme.appColors.error }]}>Scan Notice</Text>
+          <Text style={[styles.bannerMessage, { color: theme.appColors.textSecondary }]}>
+            {activeErrorMessage}
+          </Text>
+        </View>
+      ) : null}
+
+      {/* Storage Analyzer Widget */}
       <StorageAnalyzerWidget />
 
+      {/* 5 Material 3 Bento Category Cards with staggered FadeInDown */}
       <View style={styles.grid}>
-        {CATEGORY_DEFINITIONS.map(({ key, title, icon }) => {
-          const categoryValue = CATEGORY_VALUE_MAP[key];
-          const count = categoryCounts[categoryValue] ?? 0;
-          const color = CATEGORY_ACCENT_COLORS[key];
+        {CATEGORY_DEFINITIONS.map((def, index) => {
+          const count = categoryCounts[def.category] ?? 0;
+          const color = CATEGORY_ACCENT_COLORS[def.key];
 
           return (
-            <CategoryBentoCard
-              key={key}
-              title={title}
-              count={count}
-              color={color}
-              icon={icon}
-              onPress={() => handleSelectCategory(key)}
-              testID={`category-card-${key}`}
-            />
+            <Animated.View
+              key={def.key}
+              entering={FadeInDown.delay(index * 70)
+                .duration(350)
+                .springify()}
+              style={styles.cardCol}
+              testID={`animated-card-${def.key}`}
+            >
+              <CategoryBentoCard
+                category={def.key}
+                title={def.title}
+                count={count}
+                color={color}
+                icon={def.icon}
+                delay={index * 70}
+                onPress={() => handleSelectCategory(def)}
+                testID={`category-card-${def.key}`}
+              />
+            </Animated.View>
           );
         })}
       </View>
 
-      <ContinueWatchingCarousel />
+      {/* Continue Watching Carousel */}
+      <ContinueWatchingCarousel onItemPress={onContinueItemPress} />
     </ScrollView>
   );
 }
@@ -95,22 +252,65 @@ const styles = StyleSheet.create({
     paddingBottom: 36,
   },
   header: {
-    marginBottom: 18,
+    marginBottom: 16,
   },
   eyebrow: {
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1.4,
-    marginBottom: 6,
+    marginBottom: 4,
     textTransform: 'uppercase',
   },
   title: {
     fontSize: 32,
     fontWeight: '800',
   },
+  progressContainer: {
+    marginBottom: 16,
+  },
+  progressBar: {
+    height: 4,
+    borderRadius: 2,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 6,
+  },
+  banner: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+  },
+  bannerContent: {
+    gap: 8,
+  },
+  bannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  bannerMessage: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  bannerButton: {
+    alignSelf: 'flex-start',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 4,
+  },
+  bannerButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+  },
+  cardCol: {
+    width: '48%',
   },
 });
