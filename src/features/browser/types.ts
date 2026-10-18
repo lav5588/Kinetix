@@ -2,7 +2,11 @@ import type { MediaCategory } from '@core/storage/types';
 
 export type FolderExplorerViewMode = 'list' | 'grid';
 
+export type FolderSortField = 'name' | 'date' | 'size' | 'count';
+export type FolderSortOrder = 'ASC' | 'DESC';
+
 export interface FolderItemViewModel {
+  id: string;
   folderPath: string;
   folderName: string;
   category: MediaCategory;
@@ -17,4 +21,7 @@ export interface FolderItemViewModel {
 
 export interface FolderFilterOptions {
   hideMessenger?: boolean;
+  excludeHidden?: boolean;
+  sortBy?: FolderSortField;
+  sortOrder?: FolderSortOrder;
 }

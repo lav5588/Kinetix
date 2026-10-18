@@ -4,6 +4,13 @@ import type { FolderIndexRow, MediaCategory, MediaFileRow } from './types';
 export type SortField = 'name' | 'date' | 'size' | 'duration';
 export type SortOrder = 'ASC' | 'DESC';
 
+export interface GetFoldersByCategoryOptions {
+  hideMessenger?: boolean;
+  excludeHidden?: boolean;
+  sortBy?: 'name' | 'date' | 'size' | 'count';
+  sortOrder?: 'ASC' | 'DESC';
+}
+
 const sortFieldMap: Record<SortField, string> = {
   name: 'file_name COLLATE NOCASE',
   date: 'date_modified',
@@ -142,21 +149,42 @@ export class MediaRepository {
 
   async getFoldersByCategory(
     category: MediaCategory,
-    hideMessenger = false,
+    optionsOrHideMessenger: boolean | GetFoldersByCategoryOptions = false,
   ): Promise<FolderIndexRow[]> {
+    const options: GetFoldersByCategoryOptions =
+      typeof optionsOrHideMessenger === 'boolean'
+        ? { hideMessenger: optionsOrHideMessenger }
+        : optionsOrHideMessenger;
+
     const whereClauses = ['category = ?'];
     const params: Array<string | number> = [category];
 
-    if (hideMessenger) {
-      whereClauses.push(`folder_path NOT LIKE ? AND folder_path NOT LIKE ?`);
+    if (options.excludeHidden) {
+      whereClauses.push('is_excluded = ?');
+      params.push(0);
+    }
+
+    if (options.hideMessenger) {
+      whereClauses.push('folder_path NOT LIKE ? AND folder_path NOT LIKE ?');
       params.push('%WhatsApp%', '%Telegram%');
     }
+
+    let orderColumn = 'folder_name COLLATE NOCASE';
+    if (options.sortBy === 'date') {
+      orderColumn = 'last_modified';
+    } else if (options.sortBy === 'size') {
+      orderColumn = 'total_size_bytes';
+    } else if (options.sortBy === 'count') {
+      orderColumn = 'item_count';
+    }
+
+    const direction = options.sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     const sql = `
       SELECT folder_path, folder_name, category, item_count, total_size_bytes, thumbnail_uri, last_modified, is_excluded
       FROM folders_index
       WHERE ${whereClauses.join(' AND ')}
-      ORDER BY folder_name ASC, last_modified DESC
+      ORDER BY ${orderColumn} ${direction}, folder_name COLLATE NOCASE ASC
     `;
 
     const result = (await executeSql(sql, params)) as { rows?: FolderIndexRow[] };

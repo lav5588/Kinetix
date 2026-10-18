@@ -13,7 +13,11 @@ export {
 
 export { executeBatch, executeSql, sqliteClient } from './sqliteClient';
 export { initializeDatabaseSchema } from './schemaMigrations';
-export { MediaRepository, mediaRepository } from './mediaRepository';
+export {
+  MediaRepository,
+  mediaRepository,
+  type GetFoldersByCategoryOptions,
+} from './mediaRepository';
 export { UserDataRepository, userDataRepository } from './userDataRepository';
 export { ResumeManager, resumeManager } from './resumeManager';
 export {

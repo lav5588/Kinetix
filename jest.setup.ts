@@ -1,4 +1,5 @@
 import 'react-native-gesture-handler/jestSetup';
+import '@shopify/flash-list/jestSetup';
 
 type SqlValue = string | number | boolean | null;
 type SqlParams = SqlValue[];

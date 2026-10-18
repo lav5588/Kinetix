@@ -14,3 +14,6 @@ Task 6
     Subtask 8
     Subtask 9
     Subtask 10
+Task 7
+    Subtask 1
+    Subtask 2
