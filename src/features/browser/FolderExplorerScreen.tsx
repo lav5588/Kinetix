@@ -1,21 +1,23 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-export interface FolderExplorerScreenProps {
-  route?: {
-    params?: {
-      category?: string;
-    };
-  };
-}
+import type { FolderExplorerScreenProps } from '@app/navigationTypes';
 
-export function FolderExplorerScreen({ route }: FolderExplorerScreenProps): React.JSX.Element {
-  const category = route?.params?.category ?? 'audio';
+/**
+ * Temporary typed placeholder for FolderExplorerScreen.
+ * Task 7 will replace this with the full FlashList-based universal folder explorer.
+ */
+export function FolderExplorerScreen({
+  route,
+}: Partial<FolderExplorerScreenProps>): React.JSX.Element {
+  const category = route?.params?.category ?? 'AUDIO';
 
   return (
     <View style={styles.container} testID="folder-explorer-screen">
       <Text style={styles.title}>Folder Explorer</Text>
-      <Text style={styles.category}>Category: {category}</Text>
+      <Text style={styles.category} testID="folder-explorer-category">
+        Category: {category}
+      </Text>
     </View>
   );
 }

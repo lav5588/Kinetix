@@ -1,10 +1,10 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ProgressBar } from 'react-native-paper';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { fileScannerService, type FileScannerResult } from '@core/scanner';
-import type { ResumeRecord } from '@core/storage';
+import { initializeDatabaseSchema, type ResumeRecord } from '@core/storage';
 import { useMediaScannerStore } from '@core/store';
 import { CATEGORY_ACCENT_COLORS, useAppTheme } from '@core/theme';
 
@@ -12,19 +12,28 @@ import { CategoryBentoCard } from './components/CategoryBentoCard';
 import { ContinueWatchingCarousel } from './components/ContinueWatchingCarousel';
 import { StorageAnalyzerWidget } from './components/StorageAnalyzerWidget';
 
+import type { DashboardNavigationProp } from '@app/navigationTypes';
+import type { MediaCategory } from '@core/storage/types';
+
 export type CategoryKey = 'audio' | 'video' | 'photo' | 'pdf' | 'doc';
-export type MediaDomainCategory = 'AUDIO' | 'VIDEO' | 'PHOTO' | 'PDF' | 'OTHER_DOC';
+export type MediaDomainCategory = MediaCategory;
 
 export interface CategoryDashboardScreenProps {
-  navigation?: {
-    navigate: (screen: string, params?: Record<string, unknown>) => void;
-  };
-  onSelectCategory?: (category: MediaDomainCategory | CategoryKey) => void;
+  navigation?:
+    | DashboardNavigationProp
+    | {
+        navigate: (
+          screen: 'FolderExplorer' | 'PermissionGatekeeper' | string,
+          params?: Record<string, unknown>,
+        ) => void;
+      };
+  onSelectCategory?: (category: MediaCategory | CategoryKey) => void;
   onRequirePermission?: () => void;
   onContinueItemPress?: (item: ResumeRecord) => void;
   scannerService?: {
     startScan: () => Promise<FileScannerResult>;
   };
+  initDatabaseOnMount?: boolean;
 }
 
 export interface CategoryDefinition {
@@ -48,6 +57,7 @@ export function CategoryDashboardScreen({
   onRequirePermission,
   onContinueItemPress,
   scannerService = fileScannerService,
+  initDatabaseOnMount = true,
 }: CategoryDashboardScreenProps): React.JSX.Element {
   const theme = useAppTheme();
   const categoryCounts = useMediaScannerStore((state) => state.categoryCounts);
@@ -59,7 +69,29 @@ export function CategoryDashboardScreen({
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [localErrorMessage, setLocalErrorMessage] = useState<string | null>(null);
+  const [storageReady, setStorageReady] = useState(false);
   const isRefreshingRef = useRef(false);
+
+  useEffect(() => {
+    if (!initDatabaseOnMount) {
+      return;
+    }
+    let isMounted = true;
+    initializeDatabaseSchema()
+      .then(() => {
+        if (isMounted) {
+          setStorageReady(true);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setStorageReady(false);
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [initDatabaseOnMount]);
 
   const isScanning =
     status === 'scanning' || status === 'indexing' || status === 'checkingPermissions';
@@ -128,8 +160,20 @@ export function CategoryDashboardScreen({
       }
     >
       <View style={styles.header}>
-        <Text style={[styles.eyebrow, { color: theme.appColors.textSecondary }]}>Home</Text>
-        <Text style={[styles.title, { color: theme.appColors.textPrimary }]}>Kinetix</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={[styles.eyebrow, { color: theme.appColors.textSecondary }]}>Home</Text>
+            <Text style={[styles.title, { color: theme.appColors.textPrimary }]}>Kinetix</Text>
+          </View>
+          <View
+            testID="db-status-badge"
+            style={[styles.storageBadge, { backgroundColor: storageReady ? '#22C55E' : '#F59E0B' }]}
+          >
+            <Text style={styles.storageBadgeText}>
+              {storageReady ? 'SQLite + MMKV Ready' : 'Initializing storage...'}
+            </Text>
+          </View>
+        </View>
       </View>
 
       {/* Non-blocking scanner progress indicator */}
@@ -253,6 +297,21 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 16,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  storageBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  storageBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
   },
   eyebrow: {
     fontSize: 12,

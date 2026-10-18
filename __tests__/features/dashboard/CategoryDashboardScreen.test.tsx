@@ -40,7 +40,7 @@ describe('CategoryDashboardScreen', () => {
 
   describe('Live category counts & Zero / Large file states', () => {
     it('renders all 5 cards with 0 items initially', () => {
-      render(<CategoryDashboardScreen />);
+      render(<CategoryDashboardScreen initDatabaseOnMount={false} />);
 
       expect(screen.getByText('Audio')).toBeTruthy();
       expect(screen.getByText('Video')).toBeTruthy();
@@ -63,7 +63,7 @@ describe('CategoryDashboardScreen', () => {
         },
       });
 
-      render(<CategoryDashboardScreen />);
+      render(<CategoryDashboardScreen initDatabaseOnMount={false} />);
 
       expect(screen.getByText('12 items')).toBeTruthy();
       expect(screen.getByText('8 items')).toBeTruthy();
@@ -83,7 +83,7 @@ describe('CategoryDashboardScreen', () => {
         },
       });
 
-      render(<CategoryDashboardScreen />);
+      render(<CategoryDashboardScreen initDatabaseOnMount={false} />);
 
       expect(screen.getByText('50000 items')).toBeTruthy();
       expect(screen.getByText('250000 items')).toBeTruthy();
@@ -96,7 +96,7 @@ describe('CategoryDashboardScreen', () => {
       const onSelectCategory = jest.fn();
 
       render(
-        <CategoryDashboardScreen
+        <CategoryDashboardScreen initDatabaseOnMount={false}
           navigation={{ navigate }}
           onSelectCategory={onSelectCategory}
         />,
@@ -123,7 +123,7 @@ describe('CategoryDashboardScreen', () => {
         phase: 'discovering',
       });
 
-      const { rerender } = render(<CategoryDashboardScreen />);
+      const { rerender } = render(<CategoryDashboardScreen initDatabaseOnMount={false} />);
       expect(screen.getByTestId('scanner-progress-indicator')).toBeTruthy();
       expect(screen.getByText('Scanning device for media files...')).toBeTruthy();
 
@@ -135,7 +135,7 @@ describe('CategoryDashboardScreen', () => {
         });
       });
 
-      rerender(<CategoryDashboardScreen />);
+      rerender(<CategoryDashboardScreen initDatabaseOnMount={false} />);
       expect(screen.getByTestId('scanner-progress-indicator')).toBeTruthy();
       expect(screen.getByText('Indexing media files... 75%')).toBeTruthy();
 
@@ -146,7 +146,7 @@ describe('CategoryDashboardScreen', () => {
         });
       });
 
-      rerender(<CategoryDashboardScreen />);
+      rerender(<CategoryDashboardScreen initDatabaseOnMount={false} />);
       expect(screen.queryByTestId('scanner-progress-indicator')).toBeNull();
     });
   });
@@ -162,7 +162,7 @@ describe('CategoryDashboardScreen', () => {
         startScan: mockScan,
       };
 
-      render(<CategoryDashboardScreen scannerService={scannerService} />);
+      render(<CategoryDashboardScreen initDatabaseOnMount={false} scannerService={scannerService} />);
 
       const scroll = screen.getByTestId('category-dashboard-screen');
       const { refreshControl } = scroll.props;
@@ -188,7 +188,7 @@ describe('CategoryDashboardScreen', () => {
         startScan: mockScan,
       };
 
-      render(<CategoryDashboardScreen scannerService={scannerService} />);
+      render(<CategoryDashboardScreen initDatabaseOnMount={false} scannerService={scannerService} />);
 
       const scroll = screen.getByTestId('category-dashboard-screen');
       const { refreshControl } = scroll.props;
@@ -214,7 +214,7 @@ describe('CategoryDashboardScreen', () => {
         startScan: mockScan,
       };
 
-      render(<CategoryDashboardScreen scannerService={scannerService} />);
+      render(<CategoryDashboardScreen initDatabaseOnMount={false} scannerService={scannerService} />);
 
       const scroll = screen.getByTestId('category-dashboard-screen');
       await act(async () => {
@@ -241,7 +241,7 @@ describe('CategoryDashboardScreen', () => {
       };
 
       render(
-        <CategoryDashboardScreen
+        <CategoryDashboardScreen initDatabaseOnMount={false}
           navigation={{ navigate }}
           onRequirePermission={onRequirePermission}
           scannerService={scannerService}
@@ -266,7 +266,7 @@ describe('CategoryDashboardScreen', () => {
       });
 
       render(
-        <CategoryDashboardScreen
+        <CategoryDashboardScreen initDatabaseOnMount={false}
           navigation={{ navigate }}
           onRequirePermission={onRequirePermission}
         />,
@@ -296,7 +296,7 @@ describe('CategoryDashboardScreen', () => {
         ],
       });
 
-      render(<CategoryDashboardScreen />);
+      render(<CategoryDashboardScreen initDatabaseOnMount={false} />);
 
       expect(screen.getByTestId('storage-analyzer-widget')).toBeTruthy();
       expect(screen.getByTestId('continue-watching-carousel')).toBeTruthy();
