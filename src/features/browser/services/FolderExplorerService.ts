@@ -6,10 +6,12 @@ import {
 import { resumeManager, ResumeManager } from '@core/storage/resumeManager';
 import type { FolderIndexRow, MediaCategory } from '@core/storage/types';
 import { isLikelyMessengerPath } from '@core/scanner/pathFilters';
-import type { FolderFilterOptions, FolderItemViewModel } from '../types';
+import type { FolderExplorerViewMode, FolderFilterOptions, FolderItemViewModel } from '../types';
 import {
   filterFolders,
+  getStoredFolderViewMode,
   getStoredHideMessengerPreference,
+  setStoredFolderViewMode,
   setStoredHideMessengerPreference,
 } from '../utils/filterFolders';
 
@@ -36,6 +38,8 @@ export interface FolderExplorerServiceDependencies {
   mediaRepository?: MediaRepository;
   getHideMessengerPreference?: () => boolean;
   setHideMessengerPreference?: (hide: boolean) => void;
+  getViewModePreference?: () => FolderExplorerViewMode;
+  setViewModePreference?: (mode: FolderExplorerViewMode) => void;
   resumeManager?: typeof ResumeManager;
 }
 
@@ -43,12 +47,16 @@ export class FolderExplorerService {
   private readonly mediaRepo: MediaRepository;
   private readonly getPref: () => boolean;
   private readonly setPref: (hide: boolean) => void;
+  private readonly getViewMode: () => FolderExplorerViewMode;
+  private readonly setViewMode: (mode: FolderExplorerViewMode) => void;
   private readonly resumeMgr: typeof ResumeManager;
 
   constructor(dependencies: FolderExplorerServiceDependencies = {}) {
     this.mediaRepo = dependencies.mediaRepository ?? mediaRepository;
     this.getPref = dependencies.getHideMessengerPreference ?? getStoredHideMessengerPreference;
     this.setPref = dependencies.setHideMessengerPreference ?? setStoredHideMessengerPreference;
+    this.getViewMode = dependencies.getViewModePreference ?? getStoredFolderViewMode;
+    this.setViewMode = dependencies.setViewModePreference ?? setStoredFolderViewMode;
     this.resumeMgr = dependencies.resumeManager ?? resumeManager;
   }
 
@@ -140,6 +148,14 @@ export class FolderExplorerService {
 
   setHideMessengerPreference(hide: boolean): void {
     this.setPref(hide);
+  }
+
+  getViewModePreference(): FolderExplorerViewMode {
+    return this.getViewMode();
+  }
+
+  setViewModePreference(mode: FolderExplorerViewMode): void {
+    this.setViewMode(mode);
   }
 
   mapRowToViewModel(row: FolderIndexRow, hasUnfinishedResume = false): FolderItemViewModel {

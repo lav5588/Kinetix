@@ -44,7 +44,7 @@ export function getCategoryFallbackIcon(category: MediaCategory): string {
     case 'AUDIO':
       return 'folder-music';
     case 'VIDEO':
-      return 'folder-play';
+      return 'video';
     case 'PHOTO':
       return 'folder-image';
     case 'PDF':

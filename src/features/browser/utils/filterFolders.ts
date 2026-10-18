@@ -45,3 +45,21 @@ export function setStoredHideMessengerPreference(
 ): void {
   storage.set(HIDE_MESSENGER_PREF_KEY, hide);
 }
+
+export const FOLDER_VIEW_MODE_PREF_KEY = 'folder_explorer_view_mode';
+
+/**
+ * Reads the user's persisted view mode (list or grid) from MMKV.
+ * Defaults to 'list'.
+ */
+export function getStoredFolderViewMode(storage = folderPrefsStorage): 'list' | 'grid' {
+  const mode = storage.getString(FOLDER_VIEW_MODE_PREF_KEY);
+  return mode === 'grid' ? 'grid' : 'list';
+}
+
+/**
+ * Persists the user's view mode preference into MMKV.
+ */
+export function setStoredFolderViewMode(mode: 'list' | 'grid', storage = folderPrefsStorage): void {
+  storage.set(FOLDER_VIEW_MODE_PREF_KEY, mode);
+}
