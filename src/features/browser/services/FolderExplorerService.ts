@@ -6,16 +6,27 @@ import {
 import type { FolderIndexRow, MediaCategory } from '@core/storage/types';
 import { isLikelyMessengerPath } from '@core/scanner/pathFilters';
 import type { FolderFilterOptions, FolderItemViewModel } from '../types';
+import {
+  filterFolders,
+  getStoredHideMessengerPreference,
+  setStoredHideMessengerPreference,
+} from '../utils/filterFolders';
 
 export interface FolderExplorerServiceDependencies {
   mediaRepository?: MediaRepository;
+  getHideMessengerPreference?: () => boolean;
+  setHideMessengerPreference?: (hide: boolean) => void;
 }
 
 export class FolderExplorerService {
   private readonly mediaRepo: MediaRepository;
+  private readonly getPref: () => boolean;
+  private readonly setPref: (hide: boolean) => void;
 
   constructor(dependencies: FolderExplorerServiceDependencies = {}) {
     this.mediaRepo = dependencies.mediaRepository ?? mediaRepository;
+    this.getPref = dependencies.getHideMessengerPreference ?? getStoredHideMessengerPreference;
+    this.setPref = dependencies.setHideMessengerPreference ?? setStoredHideMessengerPreference;
   }
 
   async getFolders(
@@ -31,6 +42,21 @@ export class FolderExplorerService {
 
     const rows = await this.mediaRepo.getFoldersByCategory(category, queryOptions);
     return rows.map((row) => this.mapRowToViewModel(row));
+  }
+
+  filterFolders(
+    folders: readonly FolderItemViewModel[],
+    options: FolderFilterOptions = {},
+  ): FolderItemViewModel[] {
+    return filterFolders(folders, options);
+  }
+
+  getHideMessengerPreference(): boolean {
+    return this.getPref();
+  }
+
+  setHideMessengerPreference(hide: boolean): void {
+    this.setPref(hide);
   }
 
   mapRowToViewModel(row: FolderIndexRow): FolderItemViewModel {
