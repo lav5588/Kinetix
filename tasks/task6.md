@@ -286,13 +286,13 @@ Add/complete tests for the Dashboard and navigation, run project checks, and val
 
 ## Task 6 Definition of Done
 
-- [ ] Native-stack navigation is installed and integrated with existing providers.
-- [ ] Permission readiness flow remains owned by Task 4.
-- [ ] `PressableScale` is reusable, accessible, and tested.
-- [ ] Five category cards render the correct labels, icons, counts, and theme styles.
-- [ ] Storage widget shows only correctly sourced and labeled data.
-- [ ] Continue-watching carousel uses the existing resume-history store and hides when empty/disabled.
-- [ ] Pull-to-refresh calls the existing scanner safely and reports progress/errors.
-- [ ] Each card navigates with the correct typed category parameter.
-- [ ] Component tests, navigation tests, typecheck, lint, and available E2E/build checks are run and reported.
-- [ ] No Task 7 folder-browser implementation, player implementation, online dependency, or unrelated refactor is included.
+- [x] Native-stack navigation is installed and integrated with existing providers.
+- [x] Permission readiness flow remains owned by Task 4.
+- [x] `PressableScale` is reusable, accessible, and tested.
+- [x] Five category cards render the correct labels, icons, counts, and theme styles.
+- [x] Storage widget shows only correctly sourced and labeled data.
+- [x] Continue-watching carousel uses the existing resume-history store and hides when empty/disabled.
+- [x] Pull-to-refresh calls the existing scanner safely and reports progress/errors.
+- [x] Each card navigates with the correct typed category parameter.
+- [x] Component tests, navigation tests, typecheck, lint, and available E2E/build checks are run and reported.
+- [x] No Task 7 folder-browser implementation, player implementation, online dependency, or unrelated refactor is included.

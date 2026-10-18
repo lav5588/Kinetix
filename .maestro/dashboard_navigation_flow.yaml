@@ -1,0 +1,60 @@
+appId: com.kinetix
+---
+# Launch the Kinetix App
+- launchApp:
+    clearState: true
+
+# Handle permission gatekeeper if displayed on initial opening
+- runFlow:
+    when:
+      visible: "Grant Storage Access"
+    commands:
+      - tapOn: "Grant Storage Access"
+
+# Assert on Category Dashboard Screen and all 5 Bento category cards
+- assertVisible: "Kinetix"
+- assertVisible: "Audio"
+- assertVisible: "Video"
+- assertVisible: "Photos"
+- assertVisible: "PDF"
+- assertVisible: "Other Docs"
+
+# 1. Tap Audio card and assert navigation to FolderExplorer with AUDIO parameter
+- tapOn: "category-card-audio"
+- assertVisible: "folder-explorer-screen"
+- assertVisible: "Category: AUDIO"
+- back
+- assertVisible: "category-dashboard-screen"
+
+# 2. Tap Video card and assert navigation to FolderExplorer with VIDEO parameter
+- tapOn: "category-card-video"
+- assertVisible: "folder-explorer-screen"
+- assertVisible: "Category: VIDEO"
+- back
+- assertVisible: "category-dashboard-screen"
+
+# 3. Tap Photos card and assert navigation to FolderExplorer with PHOTO parameter
+- tapOn: "category-card-photo"
+- assertVisible: "folder-explorer-screen"
+- assertVisible: "Category: PHOTO"
+- back
+- assertVisible: "category-dashboard-screen"
+
+# 4. Tap PDF card and assert navigation to FolderExplorer with PDF parameter
+- tapOn: "category-card-pdf"
+- assertVisible: "folder-explorer-screen"
+- assertVisible: "Category: PDF"
+- back
+- assertVisible: "category-dashboard-screen"
+
+# 5. Tap Other Docs card and assert navigation to FolderExplorer with OTHER_DOC parameter
+- tapOn: "category-card-doc"
+- assertVisible: "folder-explorer-screen"
+- assertVisible: "Category: OTHER_DOC"
+- back
+- assertVisible: "category-dashboard-screen"
+
+# Pull to refresh verification
+- swipe:
+    direction: DOWN
+- assertVisible: "category-dashboard-screen"
