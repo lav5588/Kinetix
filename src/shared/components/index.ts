@@ -1,1 +1,1 @@
-export {};
+export { PressableScale } from './PressableScale';

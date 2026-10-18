@@ -8,6 +8,6 @@ module.exports = {
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native|react-native-paper|react-native-reanimated|react-native-gesture-handler|react-native-vector-icons)/)',
+    'node_modules/(?!((jest-)?react-native|@react-native|@react-navigation|react-native-paper|react-native-reanimated|react-native-gesture-handler|react-native-vector-icons|react-native-safe-area-context|react-native-screens)/)',
   ],
 };
