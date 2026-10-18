@@ -28,6 +28,7 @@ export {
 } from './repositories/FileRepository';
 export { UserDataRepository, userDataRepository } from './userDataRepository';
 export { ResumeManager, resumeManager } from './resumeManager';
+export { ResumeRepository, resumeRepository } from './repositories/ResumeRepository';
 export {
   useResumeStore,
   useResumeHistoryStore,

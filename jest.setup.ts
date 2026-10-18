@@ -204,3 +204,129 @@ jest.mock('react-native-vector-icons/MaterialCommunityIcons', () => {
   return ({ name, ...props }: { name: string; [key: string]: unknown }) =>
     React.createElement(Text, props, name);
 });
+
+jest.mock('react-native-track-player', () => {
+  const State = {
+    None: 'none',
+    Ready: 'ready',
+    Playing: 'playing',
+    Paused: 'paused',
+    Stopped: 'stopped',
+    Loading: 'loading',
+    Buffering: 'buffering',
+    Error: 'error',
+    Ended: 'ended',
+  };
+
+  const Capability = {
+    Play: 0,
+    PlayFromId: 1,
+    PlayFromSearch: 2,
+    Pause: 3,
+    Stop: 4,
+    SeekTo: 5,
+    Skip: 6,
+    SkipToNext: 7,
+    SkipToPrevious: 8,
+    SetRating: 9,
+    JumpForward: 10,
+    JumpBackward: 11,
+    Like: 12,
+    Dislike: 13,
+    Bookmark: 14,
+  };
+
+  const RepeatMode = {
+    Off: 0,
+    Track: 1,
+    Queue: 2,
+  };
+
+  const Event = {
+    PlaybackState: 'playback-state',
+    PlaybackError: 'playback-error',
+    PlaybackQueueEnded: 'playback-queue-ended',
+    PlaybackTrackChanged: 'playback-track-changed',
+    PlaybackActiveTrackChanged: 'playback-active-track-changed',
+    PlaybackProgressUpdated: 'playback-progress-updated',
+    RemotePlay: 'remote-play',
+    RemotePause: 'remote-pause',
+    RemoteStop: 'remote-stop',
+    RemoteNext: 'remote-next',
+    RemotePrevious: 'remote-previous',
+    RemoteSeek: 'remote-seek',
+    RemoteDuck: 'remote-duck',
+    RemoteJumpForward: 'remote-jump-forward',
+    RemoteJumpBackward: 'remote-jump-backward',
+    RemoteSetRating: 'remote-set-rating',
+    RemoteLike: 'remote-like',
+    RemoteDislike: 'remote-dislike',
+    RemoteBookmark: 'remote-bookmark',
+  };
+
+  const AppKilledPlaybackBehavior = {
+    ContinuePlayback: 'continue-playback',
+    PausePlayback: 'pause-playback',
+    StopPlaybackAndRemoveNotification: 'stop-playback-and-remove-notification',
+  };
+
+  const mockTrackPlayer = {
+    setupPlayer: jest.fn().mockResolvedValue(undefined),
+    registerPlaybackService: jest.fn(),
+    add: jest.fn().mockResolvedValue(undefined),
+    remove: jest.fn().mockResolvedValue(undefined),
+    skip: jest.fn().mockResolvedValue(undefined),
+    skipToNext: jest.fn().mockResolvedValue(undefined),
+    skipToPrevious: jest.fn().mockResolvedValue(undefined),
+    reset: jest.fn().mockResolvedValue(undefined),
+    play: jest.fn().mockResolvedValue(undefined),
+    pause: jest.fn().mockResolvedValue(undefined),
+    stop: jest.fn().mockResolvedValue(undefined),
+    seekTo: jest.fn().mockResolvedValue(undefined),
+    setVolume: jest.fn().mockResolvedValue(undefined),
+    getVolume: jest.fn().mockResolvedValue(1),
+    setRate: jest.fn().mockResolvedValue(undefined),
+    getRate: jest.fn().mockResolvedValue(1),
+    getTrack: jest.fn().mockResolvedValue(null),
+    getQueue: jest.fn().mockResolvedValue([]),
+    getActiveTrack: jest.fn().mockResolvedValue(null),
+    getActiveTrackIndex: jest.fn().mockResolvedValue(undefined),
+    getProgress: jest.fn().mockResolvedValue({ position: 0, duration: 0, buffered: 0 }),
+    getPlaybackState: jest.fn().mockResolvedValue({ state: State.None }),
+    updateOptions: jest.fn().mockResolvedValue(undefined),
+    setRepeatMode: jest.fn().mockResolvedValue(undefined),
+    getRepeatMode: jest.fn().mockResolvedValue(RepeatMode.Off),
+    addEventListener: jest.fn().mockReturnValue({ remove: jest.fn() }),
+    CAPABILITY_PLAY: 0,
+    CAPABILITY_PLAY_FROM_ID: 1,
+    CAPABILITY_PLAY_FROM_SEARCH: 2,
+    CAPABILITY_PAUSE: 3,
+    CAPABILITY_STOP: 4,
+    CAPABILITY_SEEK_TO: 5,
+    CAPABILITY_SKIP: 6,
+    CAPABILITY_SKIP_TO_NEXT: 7,
+    CAPABILITY_SKIP_TO_PREVIOUS: 8,
+    CAPABILITY_SET_RATING: 9,
+    CAPABILITY_JUMP_FORWARD: 10,
+    CAPABILITY_JUMP_BACKWARD: 11,
+    REPEAT_OFF: 0,
+    REPEAT_TRACK: 1,
+    REPEAT_QUEUE: 2,
+  };
+
+  return {
+    __esModule: true,
+    default: mockTrackPlayer,
+    ...mockTrackPlayer,
+    useProgress: jest.fn().mockReturnValue({ position: 0, duration: 0, buffered: 0 }),
+    usePlaybackState: jest.fn().mockReturnValue({ state: State.None }),
+    useActiveTrack: jest.fn().mockReturnValue(undefined),
+    useIsPlaying: jest.fn().mockReturnValue({ playing: false, bufferingDuringPlay: false }),
+    State,
+    Capability,
+    RepeatMode,
+    Event,
+    AppKilledPlaybackBehavior,
+  };
+});
+

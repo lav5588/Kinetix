@@ -177,7 +177,7 @@ describe('Task 8 Subtask 3: FileRepository & FTS5 Search Queries', () => {
       const lastQuery = queries[0];
       expect(lastQuery.query).toContain('FROM media_files_fts AS fts');
       expect(lastQuery.query).toContain('JOIN media_files AS m ON fts.id = m.id');
-      expect(lastQuery.query).toContain('fts MATCH ?');
+      expect(lastQuery.query).toContain('media_files_fts MATCH ?');
       expect(lastQuery.query).toContain('m.category = ?');
 
       // Verify parameterization

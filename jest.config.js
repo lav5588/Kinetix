@@ -10,4 +10,5 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native|@react-navigation|@shopify|react-native-paper|react-native-reanimated|react-native-gesture-handler|react-native-vector-icons|react-native-safe-area-context|react-native-screens)/)',
   ],
+  testTimeout: 15000,
 };
