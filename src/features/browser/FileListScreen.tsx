@@ -11,6 +11,7 @@ import { fileRepository } from '@core/storage/repositories/FileRepository';
 import { useResumeHistoryStore } from '@core/storage/useResumeStore';
 import { useBrowserFilterStore } from '@core/store/useBrowserFilterStore';
 import type { MediaCategory, MediaFileRow, ResumeRecord } from '@core/storage/types';
+import { audioPlaybackService } from '@features/audioPlayer';
 import { FileItemCard } from './components/FileItemCard';
 import { SmartSearchHeader } from './components/SmartSearchHeader';
 import { SortBottomSheet, type SortBottomSheetRef } from './components/SortBottomSheet';
@@ -200,10 +201,14 @@ export function FileListScreen({
   const handleFilePress = useCallback(
     (file: MediaFileRow) => {
       onFilePress?.(file);
-      // NOTE: Playback screens (AudioPlayer / VideoPlayer) are scheduled for Task 9 & 10.
+      if (category === 'AUDIO') {
+        const audioQueue = displayedFiles.filter((f) => f.category === 'AUDIO');
+        const startIdx = audioQueue.findIndex((f) => f.id === file.id);
+        void audioPlaybackService.loadQueue(audioQueue, Math.max(0, startIdx), true);
+      }
       console.log('[FileListScreen] File selected:', file.file_name, file.file_path);
     },
-    [onFilePress],
+    [category, onFilePress, displayedFiles],
   );
 
   const handleToggleViewMode = useCallback(() => {

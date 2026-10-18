@@ -1,0 +1,46 @@
+appId: com.kinetix
+---
+# Launch the Kinetix App
+- launchApp:
+    clearState: false
+
+# Handle permission gatekeeper if displayed on initial opening
+- runFlow:
+    when:
+      visible: "Grant Storage Access"
+    commands:
+      - tapOn: "Grant Storage Access"
+
+# Assert on Category Dashboard Screen
+- assertVisible: "category-dashboard-screen"
+- assertVisible: "Audio"
+
+# 1. Tap Audio card on Dashboard
+- tapOn: "category-card-audio"
+- assertVisible: "folder-explorer-screen"
+
+# 2. Tap an audio folder to open FileListScreen
+- runFlow:
+    when:
+      visible: "folder-explorer-list"
+    commands:
+      - tapOn:
+          point: "50%,20%"
+      - assertVisible: "file-list-screen"
+
+      # 3. Tap an audio track to trigger playback engine loadQueue
+      - tapOn:
+          point: "50%,25%"
+
+      # 4. Background the app to verify background playback service survival
+      - pressHome
+      - launchApp:
+          clearState: false
+      - assertVisible: "file-list-screen"
+
+      # 5. Navigate back to Folder Explorer and Dashboard
+      - back
+      - assertVisible: "folder-explorer-screen"
+
+- back
+- assertVisible: "category-dashboard-screen"

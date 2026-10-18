@@ -148,7 +148,7 @@ export class FileRepository {
       }
     }
 
-    const whereClauses: string[] = ['fts.id = m.id', 'fts MATCH ?'];
+    const whereClauses: string[] = ['fts.id = m.id', 'media_files_fts MATCH ?'];
     const queryParams: Array<string | number> = [sanitized];
 
     if (category) {

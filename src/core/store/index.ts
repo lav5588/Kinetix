@@ -19,3 +19,8 @@ export {
   type BrowserViewMode,
   DEFAULT_CATEGORY_PREFERENCES,
 } from './useBrowserFilterStore';
+export {
+  useAudioPlayerStore,
+  type AudioPlayerState,
+  INITIAL_AUDIO_PLAYER_STATE,
+} from './useAudioPlayerStore';
