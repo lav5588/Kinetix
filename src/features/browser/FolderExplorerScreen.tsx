@@ -1,13 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Modal, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { FlashList } from '@shopify/flash-list';
@@ -19,6 +11,7 @@ import type { MediaCategory } from '@core/storage/types';
 import { PressableScale } from '@shared/components/PressableScale';
 import { FolderListItem } from './components/FolderListItem';
 import { FolderGridItem } from './components/FolderGridItem';
+import { FolderListSkeleton } from './components/FolderListSkeleton';
 import {
   folderExplorerService as defaultFolderService,
   FolderExplorerService,
@@ -298,12 +291,7 @@ export function FolderExplorerScreen({
       {/* Content Area: Loading / Permission Required / Error / Empty / FlashList */}
       <View style={styles.content}>
         {isLoading && !isRefreshing ? (
-          <View style={styles.centeredState} testID="folder-explorer-loading">
-            <ActivityIndicator color={theme.appColors.primary} size="large" />
-            <Text style={[styles.stateMessage, { color: theme.appColors.textSecondary }]}>
-              Loading folders...
-            </Text>
-          </View>
+          <FolderListSkeleton viewMode={viewMode} />
         ) : hasPermissionError ? (
           <View style={styles.centeredState} testID="folder-explorer-permission-required">
             <MaterialCommunityIcons
