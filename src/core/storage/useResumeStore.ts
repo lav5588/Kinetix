@@ -4,7 +4,7 @@ import type { ResumeRecord } from './types';
 
 export type ResumeCategory = ResumeRecord['category'];
 
-interface ResumeStoreState {
+export interface ResumeStoreState {
   items: ResumeRecord[];
   saveResumeState: (record: ResumeRecord) => ResumeRecord;
   getResumeState: (filePath: string) => ResumeRecord | null;
@@ -40,4 +40,5 @@ export const useResumeStore = create<ResumeStoreState>((set) => ({
   },
 }));
 
+export const useResumeHistoryStore = useResumeStore;
 export default useResumeStore;
