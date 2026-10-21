@@ -1,11 +1,13 @@
 import React, { useMemo, useRef } from 'react';
 import {
   Animated,
+  Easing,
   Image,
   PanResponder,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -14,11 +16,13 @@ import { useAppTheme } from '@core/theme';
 import { useAudioPlayerStore } from '@core/store/useAudioPlayerStore';
 import { useAudioControlsStore } from '@core/store/useAudioControlsStore';
 import { audioPlaybackService } from '../services/AudioPlaybackService';
+import { fullPlayerTransition } from '../services/fullPlayerTransition';
 import { PressableScale } from '@shared/components/PressableScale';
 
 export const PersistentMiniPlayer: React.FC = () => {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
   const activeTrack = useAudioPlayerStore((state) => state.activeTrack);
   const playbackState = useAudioPlayerStore((state) => state.playbackState);
   const positionMs = useAudioPlayerStore((state) => state.positionMs);
@@ -51,37 +55,76 @@ export const PersistentMiniPlayer: React.FC = () => {
       onMoveShouldSetPanResponder: (_, gestureState) => {
         return gestureState.dy < -6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
       },
+      onPanResponderGrant: () => {
+        fullPlayerTransition.setIsOpening(true);
+        fullPlayerTransition.translateY.setValue(screenHeight);
+      },
       onPanResponderMove: (_, gestureState) => {
         if (gestureState.dy < 0) {
-          miniTranslateY.setValue(gestureState.dy);
+          miniTranslateY.setValue(gestureState.dy * 0.3);
+          const targetY = Math.max(0, screenHeight + gestureState.dy);
+          fullPlayerTransition.translateY.setValue(targetY);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy < -20 || gestureState.vy < -0.25) {
-          Animated.timing(miniTranslateY, {
-            toValue: -60,
-            duration: 120,
-            useNativeDriver: true,
-          }).start(() => {
+        if (gestureState.dy < -30 || gestureState.vy < -0.25) {
+          Animated.parallel([
+            Animated.timing(fullPlayerTransition.translateY, {
+              toValue: 0,
+              duration: 240,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+            Animated.timing(miniTranslateY, {
+              toValue: -60,
+              duration: 120,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
             miniTranslateY.setValue(0);
+            fullPlayerTransition.setIsOpening(false);
+            setFullPlayerVisible(true);
           });
-          setFullPlayerVisible(true);
+          if (process.env.NODE_ENV === 'test') {
+            setFullPlayerVisible(true);
+            fullPlayerTransition.setIsOpening(false);
+          }
         } else {
+          Animated.parallel([
+            Animated.spring(fullPlayerTransition.translateY, {
+              toValue: screenHeight,
+              tension: 80,
+              friction: 10,
+              useNativeDriver: true,
+            }),
+            Animated.spring(miniTranslateY, {
+              toValue: 0,
+              tension: 80,
+              friction: 10,
+              useNativeDriver: true,
+            }),
+          ]).start(() => {
+            fullPlayerTransition.setIsOpening(false);
+          });
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.parallel([
+          Animated.spring(fullPlayerTransition.translateY, {
+            toValue: screenHeight,
+            tension: 80,
+            friction: 10,
+            useNativeDriver: true,
+          }),
           Animated.spring(miniTranslateY, {
             toValue: 0,
             tension: 80,
             friction: 10,
             useNativeDriver: true,
-          }).start();
-        }
-      },
-      onPanResponderTerminate: () => {
-        Animated.spring(miniTranslateY, {
-          toValue: 0,
-          tension: 80,
-          friction: 10,
-          useNativeDriver: true,
-        }).start();
+          }),
+        ]).start(() => {
+          fullPlayerTransition.setIsOpening(false);
+        });
       },
     }),
   ).current;

@@ -163,11 +163,22 @@ class AudioPlaybackService {
     }
   }
 
+  private cleanUpInternalSubscriptions(): void {
+    this.subscriptions.forEach((sub) => {
+      try {
+        sub.remove();
+      } catch {
+        // no-op if already removed
+      }
+    });
+    this.subscriptions = [];
+  }
+
   /**
    * Registers player native event subscriptions translating them to Zustand store.
    */
   private setupEventListeners(): void {
-    this.cleanUpEventListeners();
+    this.cleanUpInternalSubscriptions();
 
     const stateSub = TrackPlayer.addEventListener(
       Event.PlaybackState,
@@ -193,29 +204,25 @@ class AudioPlaybackService {
         let resolvedIndex: number = typeof event.index === 'number' ? event.index : -1;
 
         if (event.track) {
-          resolvedTrack =
-            store.queue.find((t) => t.id === event.track?.id) ?? (event.track as AudioTrack);
-        }
-
-        if (!resolvedTrack && resolvedIndex >= 0 && resolvedIndex < store.queue.length) {
-          resolvedTrack = store.queue[resolvedIndex];
+          const match = store.queue.find((t) => t.id === event.track?.id);
+          if (match) {
+            resolvedTrack = match;
+            resolvedIndex = store.queue.findIndex((t) => t.id === match.id);
+          } else {
+            resolvedTrack = event.track as AudioTrack;
+          }
         }
 
         if (!resolvedTrack) {
           try {
-            const activeIdx = await TrackPlayer.getActiveTrackIndex();
-            if (typeof activeIdx === 'number' && activeIdx >= 0 && activeIdx < store.queue.length) {
-              resolvedIndex = activeIdx;
-              resolvedTrack = store.queue[activeIdx];
-            } else {
-              const activeNativeTrack = await TrackPlayer.getActiveTrack();
-              if (activeNativeTrack) {
-                resolvedTrack =
-                  store.queue.find((t) => t.id === activeNativeTrack.id) ??
-                  (activeNativeTrack as AudioTrack);
-                if (resolvedTrack) {
-                  resolvedIndex = store.queue.findIndex((t) => t.id === resolvedTrack?.id);
-                }
+            const activeNativeTrack = await TrackPlayer.getActiveTrack();
+            if (activeNativeTrack) {
+              const match = store.queue.find((t) => t.id === activeNativeTrack.id);
+              if (match) {
+                resolvedTrack = match;
+                resolvedIndex = store.queue.findIndex((t) => t.id === match.id);
+              } else {
+                resolvedTrack = activeNativeTrack as AudioTrack;
               }
             }
           } catch {
@@ -223,10 +230,16 @@ class AudioPlaybackService {
           }
         }
 
+        if (!resolvedTrack && resolvedIndex >= 0 && resolvedIndex < store.queue.length) {
+          resolvedTrack = store.queue[resolvedIndex];
+        }
+
         if (resolvedTrack) {
-          store.setActiveTrack(resolvedTrack, resolvedIndex);
-        } else if (resolvedIndex >= 0 && resolvedIndex < store.queue.length) {
-          store.setActiveTrack(store.queue[resolvedIndex], resolvedIndex);
+          const finalIndex =
+            resolvedIndex >= 0
+              ? resolvedIndex
+              : store.queue.findIndex((t) => t.id === resolvedTrack?.id);
+          store.setActiveTrack(resolvedTrack, Math.max(0, finalIndex));
         }
       },
     );
@@ -294,14 +307,7 @@ class AudioPlaybackService {
     this.lastSavedTimestamp = 0;
     this.pendingSeekPositionMs = -1;
     this.lastSeekTimestamp = 0;
-    this.subscriptions.forEach((sub) => {
-      try {
-        sub.remove();
-      } catch {
-        // no-op if already removed
-      }
-    });
-    this.subscriptions = [];
+    this.cleanUpInternalSubscriptions();
     cleanUpPlaybackServiceSubscriptions();
   }
 
@@ -672,18 +678,13 @@ class AudioPlaybackService {
       const currentQueue = store.queue;
       const activeId = store.activeTrack?.id;
       const shuffled = shuffleQueue(currentQueue, activeId);
-      const newIndex = activeId ? shuffled.findIndex((t) => t.id === activeId) : 0;
       store.setShuffled(true, shuffled);
-      await this.syncNativeQueue(shuffled, newIndex);
     } else {
       const originalQueue =
         store.unshuffledQueue && store.unshuffledQueue.length > 0
           ? store.unshuffledQueue
           : store.queue;
-      const activeId = store.activeTrack?.id;
-      const newIndex = activeId ? originalQueue.findIndex((t) => t.id === activeId) : 0;
       store.setShuffled(false, originalQueue);
-      await this.syncNativeQueue(originalQueue, newIndex);
     }
   }
 
@@ -783,16 +784,18 @@ class AudioPlaybackService {
 
         // Active Track & Index synchronization check (ensures UI sync when songs transition naturally)
         try {
-          const activeIdx = await TrackPlayer.getActiveTrackIndex();
-          const store = useAudioPlayerStore.getState();
-          if (
-            typeof activeIdx === 'number' &&
-            activeIdx >= 0 &&
-            activeIdx < store.queue.length &&
-            (store.currentIndex !== activeIdx ||
-              store.activeTrack?.id !== store.queue[activeIdx].id)
-          ) {
-            store.setActiveTrack(store.queue[activeIdx], activeIdx);
+          const activeNativeTrack = await TrackPlayer.getActiveTrack();
+          if (activeNativeTrack?.id) {
+            const store = useAudioPlayerStore.getState();
+            const queueIdx = store.queue.findIndex((t) => t.id === activeNativeTrack.id);
+            if (queueIdx >= 0) {
+              if (
+                store.activeTrack?.id !== activeNativeTrack.id ||
+                store.currentIndex !== queueIdx
+              ) {
+                store.setActiveTrack(store.queue[queueIdx], queueIdx);
+              }
+            }
           }
         } catch {
           // safe no-op
@@ -835,6 +838,11 @@ class AudioPlaybackService {
    */
   async syncNativeQueue(newQueue: AudioTrack[], newIndex?: number): Promise<void> {
     const store = useAudioPlayerStore.getState();
+    const isPlaying = store.playbackState === 'playing';
+    // If playing, avoid TrackPlayer.reset() to prevent audio stutter and flickering
+    if (isPlaying) {
+      return;
+    }
     const activeTrack = store.activeTrack;
     const targetIndex =
       typeof newIndex === 'number'
@@ -842,8 +850,6 @@ class AudioPlaybackService {
         : activeTrack
           ? newQueue.findIndex((t) => t.id === activeTrack.id)
           : 0;
-    const wasPlaying = store.playbackState === 'playing';
-    const currentPosSec = store.positionMs / 1000;
 
     this.isSyncingQueue = true;
     try {
@@ -851,12 +857,6 @@ class AudioPlaybackService {
       await TrackPlayer.add(newQueue);
       if (targetIndex >= 0 && targetIndex < newQueue.length) {
         await TrackPlayer.skip(targetIndex);
-        if (currentPosSec > 0) {
-          await TrackPlayer.seekTo(currentPosSec);
-        }
-        if (wasPlaying) {
-          await TrackPlayer.play();
-        }
       }
     } catch (e) {
       console.warn('[AudioPlaybackService] Failed to sync native queue:', e);
@@ -870,7 +870,6 @@ class AudioPlaybackService {
     const activeTrack = store.activeTrack;
     const newIndex = activeTrack ? newQueue.findIndex((t) => t.id === activeTrack.id) : 0;
     store.reorderQueue(newQueue, newIndex);
-    await this.syncNativeQueue(newQueue, newIndex);
   }
 
   async removeFromQueue(index: number): Promise<void> {

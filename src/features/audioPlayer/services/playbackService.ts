@@ -28,10 +28,20 @@ export async function playbackService(): Promise<void> {
   isPlaybackServiceRegistered = true;
 
   const playSub = TrackPlayer.addEventListener(Event.RemotePlay, async () => {
+    try {
+      await TrackPlayer.play();
+    } catch {
+      // safe fallback
+    }
     await audioPlaybackService.play();
   });
 
   const pauseSub = TrackPlayer.addEventListener(Event.RemotePause, async () => {
+    try {
+      await TrackPlayer.pause();
+    } catch {
+      // safe fallback
+    }
     await audioPlaybackService.pause();
   });
 
@@ -40,7 +50,7 @@ export async function playbackService(): Promise<void> {
   });
 
   const prevSub = TrackPlayer.addEventListener(Event.RemotePrevious, async () => {
-    await audioPlaybackService.skipToPrevious();
+    await audioPlaybackService.skipToPrevious(true);
   });
 
   const stopSub = TrackPlayer.addEventListener(Event.RemoteStop, async () => {
@@ -50,6 +60,11 @@ export async function playbackService(): Promise<void> {
   const seekSub = TrackPlayer.addEventListener(
     Event.RemoteSeek,
     async (event: EventPayloadByEvent[Event.RemoteSeek]) => {
+      try {
+        await TrackPlayer.seekTo(event.position);
+      } catch {
+        // safe fallback
+      }
       await audioPlaybackService.seekTo(event.position * 1000);
     },
   );

@@ -17,6 +17,7 @@ import { useAppTheme } from '@core/theme';
 import { useAudioPlayerStore } from '@core/store/useAudioPlayerStore';
 import { useAudioControlsStore } from '@core/store/useAudioControlsStore';
 import { audioPlaybackService } from '../services/AudioPlaybackService';
+import { fullPlayerTransition, useIsFullPlayerOpening } from '../services/fullPlayerTransition';
 import type { AudioTrack } from '../types';
 import { PressableScale } from '@shared/components/PressableScale';
 
@@ -175,12 +176,13 @@ export const FullAudioPlayerSheet: React.FC = () => {
   }, [safeIndex, cardWidth, swipeAnim]);
 
   // Animated Vertical Sheet Dismiss Transition (slide down to dismiss, slide up on open)
-  const sheetTranslateY = useRef(new Animated.Value(screenHeight)).current;
+  const isOpening = useIsFullPlayerOpening();
+  const sheetTranslateY = fullPlayerTransition.translateY;
   const swipeDirectionRef = useRef<'horizontal' | 'vertical' | null>(null);
 
   // Slide up entrance animation on open
   useEffect(() => {
-    if (isVisible) {
+    if (isVisible && !fullPlayerTransition.isOpening) {
       sheetTranslateY.setValue(screenHeight);
       Animated.timing(sheetTranslateY, {
         toValue: 0,
@@ -199,9 +201,11 @@ export const FullAudioPlayerSheet: React.FC = () => {
       useNativeDriver: true,
     }).start(() => {
       setVisible(false);
+      fullPlayerTransition.setIsOpening(false);
     });
     if (process.env.NODE_ENV === 'test') {
       setVisible(false);
+      fullPlayerTransition.setIsOpening(false);
     }
   }, [screenHeight, setVisible, sheetTranslateY]);
 
@@ -368,7 +372,7 @@ export const FullAudioPlayerSheet: React.FC = () => {
     return () => backHandler.remove();
   }, [isVisible, handleDismiss]);
 
-  if (!activeTrack || !isVisible) {
+  if (!activeTrack || (!isVisible && !isOpening)) {
     return null;
   }
 

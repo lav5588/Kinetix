@@ -51,10 +51,18 @@ const QueueItemRow: React.FC<QueueItemRowProps> = ({
   const isDraggingAnim = useRef(new Animated.Value(0)).current;
   const [isReadyToMove, setIsReadyToMove] = useState<boolean>(false);
   const isReadyToMoveRef = useRef<boolean>(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     isReadyToMoveRef.current = isReadyToMove;
   }, [isReadyToMove]);
+
+  const clearTimer = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
 
   const activateMoveMode = () => {
     setIsReadyToMove(true);
@@ -62,13 +70,13 @@ const QueueItemRow: React.FC<QueueItemRowProps> = ({
     Animated.spring(isDraggingAnim, {
       toValue: 1,
       useNativeDriver: true,
-      bounciness: 4,
+      bounciness: 6,
+      speed: 14,
     }).start();
   };
 
   const deactivateMoveMode = () => {
-    setIsReadyToMove(false);
-    isReadyToMoveRef.current = false;
+    clearTimer();
     Animated.parallel([
       Animated.spring(panY, {
         toValue: 0,
@@ -79,36 +87,51 @@ const QueueItemRow: React.FC<QueueItemRowProps> = ({
         toValue: 0,
         useNativeDriver: true,
       }),
-    ]).start();
+    ]).start(() => {
+      setIsReadyToMove(false);
+      isReadyToMoveRef.current = false;
+    });
   };
 
-  // Row pan responder for gestures after long-press activation
+  // Unified row pan responder handling tap, 200ms long-press activation, and continuous drag
   const rowPanResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => isReadyToMoveRef.current,
+      onStartShouldSetPanResponder: () => true,
       onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-        return isReadyToMoveRef.current && Math.abs(gestureState.dy) > 3;
-      },
       onMoveShouldSetPanResponder: (_, gestureState) => {
-        return isReadyToMoveRef.current && Math.abs(gestureState.dy) > 3;
+        return isReadyToMoveRef.current || Math.abs(gestureState.dy) > 5;
+      },
+      onPanResponderGrant: () => {
+        clearTimer();
+        longPressTimerRef.current = setTimeout(() => {
+          activateMoveMode();
+        }, 200);
       },
       onPanResponderMove: (_, gestureState) => {
-        if (isReadyToMoveRef.current) {
-          panY.setValue(gestureState.dy);
+        if (!isReadyToMoveRef.current) {
+          if (Math.abs(gestureState.dy) > 8 || Math.abs(gestureState.dx) > 8) {
+            clearTimer();
+          }
+          return;
         }
+        panY.setValue(gestureState.dy);
       },
       onPanResponderRelease: (_, gestureState) => {
+        clearTimer();
         if (isReadyToMoveRef.current) {
-          if (gestureState.dy < -18 && index > 0) {
+          if (gestureState.dy < -20 && index > 0) {
             LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             onMoveUp(index);
-          } else if (gestureState.dy > 18 && index < totalCount - 1) {
+          } else if (gestureState.dy > 20 && index < totalCount - 1) {
             LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             onMoveDown(index);
           }
+          deactivateMoveMode();
+        } else {
+          if (Math.abs(gestureState.dy) < 8 && Math.abs(gestureState.dx) < 8) {
+            onPlay(index);
+          }
         }
-        deactivateMoveMode();
       },
       onPanResponderTerminate: () => {
         deactivateMoveMode();
@@ -120,7 +143,7 @@ const QueueItemRow: React.FC<QueueItemRowProps> = ({
   const handlePanResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 4,
+      onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dy) > 3,
       onPanResponderGrant: () => {
         activateMoveMode();
       },
@@ -145,7 +168,7 @@ const QueueItemRow: React.FC<QueueItemRowProps> = ({
 
   const rowScale = isDraggingAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, 1.04],
+    outputRange: [1, 1.05],
   });
 
   return (
@@ -161,7 +184,7 @@ const QueueItemRow: React.FC<QueueItemRowProps> = ({
               ? (theme.appColors.surfaceVariant ?? '#F1F5F9')
               : theme.appColors.surface,
           borderColor: isReadyToMove ? theme.appColors.primary : theme.appColors.border,
-          borderWidth: isReadyToMove ? 1.5 : 0.5,
+          borderWidth: isReadyToMove ? 2 : 0.5,
           transform: [{ translateY: panY }, { scale: rowScale }],
           zIndex: isDraggingAnim.interpolate({
             inputRange: [0, 1],
@@ -187,18 +210,9 @@ const QueueItemRow: React.FC<QueueItemRowProps> = ({
         />
       </View>
 
-      <TouchableOpacity
+      <View
         testID={`play-queue-item-${index}`}
-        onPress={() => {
-          if (isReadyToMove) {
-            deactivateMoveMode();
-          } else {
-            onPlay(index);
-          }
-        }}
-        onLongPress={activateMoveMode}
-        delayLongPress={200}
-        activeOpacity={0.8}
+        accessibilityRole="button"
         style={styles.trackInfo}
       >
         <View style={styles.indexContainer}>
@@ -230,7 +244,7 @@ const QueueItemRow: React.FC<QueueItemRowProps> = ({
             {item.artist || 'Unknown Artist'}
           </Text>
         </View>
-      </TouchableOpacity>
+      </View>
 
       {/* Delete / Remove Control */}
       <View style={styles.controlsRow}>
